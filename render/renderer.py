@@ -287,6 +287,8 @@ def x264_args(cfg):
     """Tham số nén chung cho mọi cảnh (phải giống nhau để ghép -c copy)."""
     a = ["-c:v", "libx264", "-preset", cfg.get("preset", "medium"), "-crf", str(cfg.get("crf", 18)),
          "-profile:v", "high", "-pix_fmt", "yuv420p"]
+    if cfg.get("enc_threads"):
+        a += ["-threads", str(int(cfg["enc_threads"]))]
     if cfg.get("tune", "animation"):
         a += ["-tune", cfg.get("tune", "animation")]   # hợp với tranh phẳng nhiều mảng màu
     return a
@@ -382,6 +384,49 @@ def resolve_quality(cfg, draft=False, quality=None):
     return out
 
 
+RAM_PER_WORKER_GB = {"nhap": 0.4, "chuan": 0.9, "cao": 1.6, "4k": 3.0}
+MAX_WORKERS = 32          # quá số này máy chỉ tranh nhau RAM / ổ đĩa, không nhanh thêm
+WIN_MAX_WORKERS = 60      # Windows: multiprocessing chỉ quản lý được tối đa ~61 tiến trình con
+
+
+def free_ram_gb():
+    """RAM còn trống (GB), không đọc được thì trả None."""
+    try:
+        if sys.platform == "win32":
+            import ctypes
+
+            class MS(ctypes.Structure):
+                _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong), ("ullTotalPhys", ctypes.c_ulonglong),
+                            ("ullAvailPhys", ctypes.c_ulonglong), ("ullTotalPageFile", ctypes.c_ulonglong),
+                            ("ullAvailPageFile", ctypes.c_ulonglong), ("ullTotalVirtual", ctypes.c_ulonglong),
+                            ("ullAvailVirtual", ctypes.c_ulonglong), ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+            m = MS()
+            m.dwLength = ctypes.sizeof(MS)
+            ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m))
+            return m.ullAvailPhys / 2 ** 30
+        with open("/proc/meminfo") as f:
+            for ln in f:
+                if ln.startswith("MemAvailable:"):
+                    return int(ln.split()[1]) / 2 ** 20
+    except Exception:
+        return None
+    return None
+
+
+def pick_workers(cfg, n_jobs):
+    """Số cảnh dựng song song: theo số nhân CPU, RAM còn trống, giới hạn của Windows."""
+    cpu = os.cpu_count() or 2
+    asked = int(cfg.get("workers") or 0)
+    n = asked if asked > 0 else min(cpu - 1, MAX_WORKERS)
+    if asked <= 0:
+        ram = free_ram_gb()
+        if ram:
+            n = min(n, int(ram * 0.75 / RAM_PER_WORKER_GB.get(cfg.get("quality"), 0.9)))
+    if sys.platform == "win32":
+        n = min(n, WIN_MAX_WORKERS)
+    return max(1, min(n, n_jobs))
+
+
 def render_video(plan, timeline, proj_dir, cfg, draft=False, log=print, only=None, quality=None):
     """Dựng mọi cảnh (có cache, song song) rồi ghép thành silent.mp4. Trả về đường dẫn silent.mp4."""
     cfg = resolve_quality(cfg, draft, quality)
@@ -400,7 +445,11 @@ def render_video(plan, timeline, proj_dir, cfg, draft=False, log=print, only=Non
             continue
         jobs.append((e, plan, OW, OH, fps, cfg, out))
     log(f"Dựng {len(jobs)} cảnh mới / {len(timeline)} cảnh (còn lại lấy từ cache) — {OW}x{OH}, chất lượng '{cfg['quality']}'")
-    workers = max(1, int(cfg.get("workers") or max(1, (os.cpu_count() or 2) - 1)))
+    workers = pick_workers(cfg, max(1, len(jobs)))
+    # mỗi tiến trình nén video chỉ dùng phần nhân CPU của nó (nhiều tiến trình x nhiều luồng = tranh nhau, chậm hơn)
+    cfg = dict(cfg, enc_threads=max(1, min(8, (os.cpu_count() or 2) // workers)))
+    if len(jobs) > 1:
+        log(f"   dựng song song {workers} cảnh một lúc")
     t0 = time.time()
     frames_of = {j[6]: j[0]["frames"] for j in jobs}
     total_frames = max(1, sum(frames_of.values()))
@@ -420,7 +469,7 @@ def render_video(plan, timeline, proj_dir, cfg, draft=False, log=print, only=Non
                 log(f"  [{k + 1}/{len(jobs)}] cảnh {j[0]['scene']['id']} xong ({dt:.1f}s){eta(out)}")
         else:
             ctx = mp.get_context("spawn")
-            with ctx.Pool(min(workers, len(jobs))) as pool:
+            with ctx.Pool(workers) as pool:
                 for k, (out, dt) in enumerate(pool.imap_unordered(render_scene_job, jobs)):
                     log(f"  [{k + 1}/{len(jobs)}] {os.path.basename(out)} xong ({dt:.1f}s){eta(out)}")
     log(f"Dựng hình xong sau {time.time() - t0:.0f}s")

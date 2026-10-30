@@ -58,7 +58,7 @@ render:
   fade: 0.4               # mờ qua đen giữa các cảnh (giây)
   burn_subtitles: true    # in phụ đề lên hình
   subtitle_size: 46
-  workers: 0              # số cảnh dựng song song (0 = tự chọn theo số nhân CPU)
+  workers: 0              # số cảnh dựng song song (0 = tự chọn theo số nhân CPU và RAM; Windows tối đa 60)
 
 # ---- Âm thanh
 audio:

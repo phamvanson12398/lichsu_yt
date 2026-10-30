@@ -292,7 +292,7 @@ def step_render(proj, cfg, log=print, draft=False, quality=None):
     rcfg = dict(cfg["render"])
     t0 = time.time()
     silent = render_video(plan, tl, proj.dir, rcfg, draft=draft, log=log, quality=quality)
-    log(f"🔉 Trộn âm thanh: giọng + tiếng động + nhạc nền tự tạo cho {total / 60:.0f} phút (máy đang tính, có thể mất vài phút)...")
+    log(f"🔉 Trộn âm thanh: giọng + tiếng động + nhạc nền tự tạo cho {total / 60:.1f} phút (máy đang tính, có thể mất vài phút)...")
     clips, events, beds, moods = [], [], [], []
     for e in tl:
         for (t, f) in e["clips"]:
