@@ -25,6 +25,18 @@ DEFAULTS = {
 }
 
 
+def interactive():
+    """Có người gõ phím được không? Giao diện web / app.py đặt HVT_NONINTERACTIVE=1 cho tiến trình con.
+    (Trên Windows, stdin = NUL vẫn báo isatty() = True nên không chỉ dựa vào isatty.)"""
+    import sys
+    if os.environ.get("HVT_NONINTERACTIVE") == "1":
+        return False
+    try:
+        return bool(sys.stdin) and sys.stdin.isatty()
+    except Exception:
+        return False
+
+
 def _merge(a, b):
     out = copy.deepcopy(a)
     for k, v in (b or {}).items():

@@ -220,10 +220,21 @@ def _save(name, ref_audio, sr, ref_text, meta, sample=None):
     return d
 
 
+def _safe_ask(ask, prompt, default=""):
+    """Hỏi bàn phím; không có bàn phím (chạy từ web / app) thì trả về mặc định thay vì báo lỗi."""
+    from core.config import interactive
+    if ask is input and not interactive():
+        return default
+    try:
+        return ask(prompt)
+    except (EOFError, OSError):
+        return default
+
+
 def ask_consent(given=False, ask=input):
     if given:
         return True
-    ans = ask(f"Xác nhận: \"{CONSENT_TEXT}\" (gõ co / khong): ").strip().lower()
+    ans = _safe_ask(ask, f"Xác nhận: \"{CONSENT_TEXT}\" (gõ co / khong): ").strip().lower()
     return ans in ("co", "có", "c", "y", "yes")
 
 
@@ -248,7 +259,7 @@ def add_clone(name, src, ref_text=None, consent=False, cfg=None, log=print, ask=
         ref_text = eng.transcribe(tmp_ref, lang) or ""
         log(f"   Máy nghe được: \"{ref_text}\"")
         if interactive:
-            fix = ask("Sửa lại lời cho đúng (Enter để giữ nguyên): ").strip()
+            fix = _safe_ask(ask, "Sửa lại lời cho đúng (Enter để giữ nguyên): ").strip()
             ref_text = fix or ref_text
     if not ref_text:
         raise RuntimeError("Cần lời thoại của đoạn mẫu (--text \"...\").")
@@ -262,7 +273,7 @@ def add_clone(name, src, ref_text=None, consent=False, cfg=None, log=print, ask=
             play(sample)
         except Exception:
             pass
-        if ask("Lưu giọng này? (co / khong): ").strip().lower() not in ("co", "có", "c", "y", "yes"):
+        if _safe_ask(ask, "Lưu giọng này? (co / khong): ", "co").strip().lower() not in ("co", "có", "c", "y", "yes"):
             raise RuntimeError("Đã huỷ, không lưu giọng.")
     d = _save(name, seg, 24000, ref_text, {"loai": "clone", "instruct": "", "mo_ta": mo_ta or f"Nhân bản từ {os.path.basename(src)}",
                                            "dong_y": True, "ngon_ngu": lang}, sample=(a, sr))
@@ -298,15 +309,22 @@ def save_design(name, cand, text=None, mo_ta=""):
 
 
 def choose(cands, auto=False, ask=input, log=print):
+    from core.config import interactive
+    if not auto and ask is input and not interactive():
+        auto = True
     if auto:
         scored = [c for c in cands if c["cer"] is not None]
         best = min(scored, key=lambda c: c["cer"]) if scored else cands[0]
-        log(f"🤖 Tự chọn ứng viên: \"{best['instruct']}\"")
+        sc = f" (sai lệch nhận dạng {best['cer']:.0%} — thấp nhất)" if best.get("cer") is not None else ""
+        log(f"🤖 Tự chọn ứng viên: \"{best['instruct']}\"{sc}")
         return best
     for i, c in enumerate(cands):
         log(f"  [{i + 1}] {c['instruct']}  —  {c['path']}")
     while True:
-        a = ask("Nghe các file trên rồi gõ số ứng viên muốn chọn (p<số> để phát, vd p1): ").strip().lower()
+        a = _safe_ask(ask, "Nghe các file trên rồi gõ số ứng viên muốn chọn (p<số> để phát, vd p1): ", None)
+        if a is None:          # không có bàn phím -> tự chọn
+            return choose(cands, auto=True, ask=ask, log=log)
+        a = a.strip().lower()
         if a.startswith("p") and a[1:].isdigit() and 1 <= int(a[1:]) <= len(cands):
             try:
                 play(cands[int(a[1:]) - 1]["path"])

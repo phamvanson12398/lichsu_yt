@@ -115,7 +115,7 @@ class App:
             try:
                 p = subprocess.Popen([sys.executable, os.path.join(ROOT, "main.py")] + args, stdout=subprocess.PIPE,
                                      stderr=subprocess.STDOUT, stdin=subprocess.PIPE, text=True, encoding="utf-8", errors="replace",
-                                     cwd=ROOT, env=dict(os.environ, PYTHONIOENCODING="utf-8"))
+                                     cwd=ROOT, env=dict(os.environ, PYTHONIOENCODING="utf-8", HVT_NONINTERACTIVE="1"))
                 for line in p.stdout:
                     self.log(line.rstrip())
                 p.wait()

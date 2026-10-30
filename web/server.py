@@ -38,7 +38,7 @@ class Job:
         self.id = uuid.uuid4().hex[:10]
         self.args, self.title, self.project = args, title, project
         self.lines, self.rc, self.started, self.ended = [], None, time.time(), None
-        env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1", PYTHONUNBUFFERED="1")
+        env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1", PYTHONUNBUFFERED="1", HVT_NONINTERACTIVE="1")
         flags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
         self.proc = subprocess.Popen([sys.executable, os.path.join(ROOT, "main.py")] + args, cwd=ROOT, env=env,
                                      stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,

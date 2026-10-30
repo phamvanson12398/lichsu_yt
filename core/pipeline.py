@@ -204,7 +204,7 @@ def step_voice(proj, cfg, router, log=print, draft=False, auto=False, ask=input,
         return
     voice = VL.Voice(voice_name) if voice_name else VL.pick_voice(plan.get("voice"), plan.get("country"), cfg, lang)
     if voice is None:
-        log("Chưa có giọng nào -> tự thiết kế giọng phù hợp chủ đề (cách B).")
+        log("Chưa chọn giọng -> AI tự mô tả giọng hợp chủ đề, tạo 3 ứng viên và tự chọn bản đọc rõ nhất (không cần bạn làm gì).")
         hint = (proj.load("script.json") or {}).get("voice_suggestion", "")
         try:
             instructs = VL.suggest_instructs(router, plan["title"], hint, lang) if router else VL.fallback_instructs()
@@ -213,10 +213,18 @@ def step_voice(proj, cfg, router, log=print, draft=False, auto=False, ask=input,
             instructs = VL.fallback_instructs()
         log("⚠️  Voice design của OmniVoice học chủ yếu tiếng Trung / Anh; tiếng Việt có thể kém ổn định. "
             "Nếu nghe chưa tốt, nên dùng giọng thật của bạn: python main.py voice add <tên> --file giong.mp3")
+        log("   Mô tả giọng AI đề xuất: " + " | ".join(instructs))
         cands = VL.design_candidates(instructs, cfg, log, lang=lang)
-        best = VL.choose(cands, auto=auto, ask=ask, log=log)
+        best = VL.choose(cands, auto=True, log=log)          # luôn tự chọn, không hỏi
         name = "tu_dong_" + os.path.basename(proj.dir)
-        VL.save_design(name, best)
+        VL.save_design(name, best, mo_ta=f"AI tự thiết kế cho '{plan['title']}': {best['instruct']}")
+        # giữ lại cả 3 ứng viên trong dự án để nghe / đổi sau nếu muốn
+        for i, c in enumerate(cands, 1):
+            try:
+                shutil.copyfile(c["path"], proj.p("voice", f"ung_vien_{i}.wav"))
+            except OSError:
+                pass
+        log(f"   ✔ Đã lưu giọng '{name}' ({best['instruct']}). 3 ứng viên để nghe lại: {os.path.join(proj.p('voice'), 'ung_vien_*.wav')}")
         if lang != "vi":
             VL.set_default(name, language=lang)
         elif not VL.defaults().get("default"):
@@ -329,7 +337,7 @@ def run(proj, cfg, log=print, auto=False, draft=False, offline=False, ask=input,
             return "review_plan"
     proj.mark("plan", approved=True)
     # không có bàn phím (chạy từ giao diện web) -> tự chọn giọng ứng viên tốt nhất
-    interactive = bool(sys.stdin) and sys.stdin.isatty()
+    interactive = config_mod.interactive()
     step_voice(proj, cfg, router, log, draft=draft, auto=auto or not interactive, ask=ask, voice_name=voice_name)
     return step_render(proj, cfg, log, draft=draft, quality=quality)
 

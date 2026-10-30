@@ -231,6 +231,11 @@ class OmniVoiceEngine:
         if self.asr is None:
             try:
                 from transformers import pipeline
+                try:   # tắt các cảnh báo [transformers] vô hại
+                    from transformers.utils import logging as hf_logging
+                    hf_logging.set_verbosity_error()
+                except Exception:
+                    pass
                 dev = 0 if (self.device or "").startswith("cuda") else -1
                 self.asr = pipeline("automatic-speech-recognition", model=self.cfg.get("asr_model", "openai/whisper-small"), device=dev)
             except Exception as e:
