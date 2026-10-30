@@ -81,6 +81,12 @@ Dừng duyệt mặc định sau bước 2 và 3 (`review_after` trong `config.y
 `python main.py diversify <dự án>` đổi góc nhìn các cảnh lặp nhau (nhìn qua tán lá, tướng chỉ huy cận cảnh, lau sậy,
 đổi chuyển động camera) mà không gọi AI, không đổi lời đọc; bản cũ lưu ở `plan_truoc_da_dang.json`.
 
+**Chọn AI (Claude hoặc Antigravity):**
+- Mặc định cho từng việc (viết kịch bản / lập kế hoạch / kiểm tra sự kiện): trang **Cài đặt** trên web, mục menu
+  "Chọn AI mặc định", hoặc sửa `writer:` / `planner:` / `checker:` trong `config.yaml`.
+- Riêng một lần chạy: ô **AI** ở trang Tạo video mới và trang dự án (web), ô "AI" trong giao diện cửa sổ,
+  câu hỏi "Dùng AI nào" trong menu, hoặc thêm `--ai claude` / `--ai agy` vào lệnh.
+
 **Bố cục kịch bản giữ chân người xem (7 phần):** AI viết theo khung hook (mở thẳng vào khoảnh khắc quyết định,
 đặt câu hỏi lớn, gợi một "bí mật") → hai phe & cán cân lực lượng → trước trận: mưu kế & chuẩn bị → bước ngoặt giữa video →
 diễn biến – cao trào (hé lộ bí mật ở ~2/3 video) → kết cục & cái giá (trả lời câu hỏi lớn) → di sản & câu hỏi mở sang video sau.

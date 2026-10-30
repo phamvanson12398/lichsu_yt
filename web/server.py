@@ -257,6 +257,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(voices_list())
             if p == "/api/config":
                 return self._json({"text": _load(os.path.join(ROOT, "config.yaml"), "")})
+            if p == "/api/ai":
+                from core import config as C
+                from core.llm.base import which
+                cfg = C.load()
+                return self._json({"roles": {r: cfg.get(r) for r in C.AI_ROLES}, "fallback": bool(cfg.get("fallback", True)),
+                                   "names": C.AI_NAMES, "installed": {k: bool(which(k)) for k in C.AI_NAMES}})
             if p == "/api/options":
                 from assets_code import registry
                 from render.palettes import PALETTES
@@ -287,6 +293,8 @@ class Handler(BaseHTTPRequestHandler):
                     args.append("--auto")
                 if b.get("offline"):
                     args.append("--offline")
+                if b.get("ai") in ("claude", "agy"):
+                    args += ["--ai", b["ai"]]
                 j = start_job(args, f"Tạo video: {topic}", slug)
                 return self._json({"job": j.id, "project": slug})
             if m := re.fullmatch(r"/api/projects/([\w.-]+)/run", p):
@@ -306,6 +314,8 @@ class Handler(BaseHTTPRequestHandler):
                     args.append("--offline")
                 if b.get("voice") and act in ("continue", "voice-gen"):
                     args += ["--voice", b["voice"]]
+                if b.get("ai") in ("claude", "agy") and act in ("continue", "script", "plan", "check-facts"):
+                    args += ["--ai", b["ai"]]
                 labels = {"continue": "Chạy tiếp", "script": "Viết lại kịch bản", "plan": "Lập lại kế hoạch dựng", "diversify": "Đa dạng góc nhìn",
                           "preview": "Xem trước", "voice-gen": "Tạo giọng đọc", "render": "Dựng video",
                           "validate": "Kiểm tra plan", "check-facts": "Kiểm tra sự kiện"}
@@ -371,6 +381,11 @@ class Handler(BaseHTTPRequestHandler):
                         return self._err(f"JSON sai cú pháp ở dòng {e.lineno}, cột {e.colno}: {e.msg}")
                 with open(os.path.join(PROJECTS, name, fname), "w", encoding="utf-8") as f:
                     f.write(text)
+                return self._json({"ok": True})
+            if p == "/api/ai":
+                from core import config as C
+                b = self._jbody()
+                C.save_ai(b.get("roles") or {}, b.get("fallback"))
                 return self._json({"ok": True})
             if p == "/api/config":
                 text = self._jbody().get("text", "")

@@ -52,6 +52,11 @@ class App:
                                     values=["chuan - 1080p", "cao - 1440p", "4k - 2160p"])
         self.quality.set("chuan - 1080p")
         self.quality.pack(side="left", padx=(2, 10))
+        ttk.Label(opts, text="AI:").pack(side="left")
+        self.ai = ttk.Combobox(opts, width=20, state="readonly",
+                               values=["Theo config.yaml", "claude - Claude", "agy - Antigravity"])
+        self.ai.set("Theo config.yaml")
+        self.ai.pack(side="left", padx=(2, 10))
         ttk.Checkbutton(opts, text="Chạy hết không dừng duyệt", variable=self.auto).pack(side="left")
         ttk.Checkbutton(opts, text="Chế độ nháp (nhanh, 960x540)", variable=self.draft).pack(side="left", padx=10)
         ttk.Checkbutton(opts, text="Không dùng AI (lập plan theo mẫu)", variable=self.offline).pack(side="left")
@@ -102,7 +107,11 @@ class App:
             a.append("--draft")
         if self.offline.get():
             a.append("--offline")
-        return a
+        return a + self.ai_flag()
+
+    def ai_flag(self):
+        v = self.ai.get().split(" ")[0]
+        return ["--ai", v] if v in ("claude", "agy") else []
 
     def run_cmd(self, args):
         """Chạy main.py trong tiến trình con (để dựng song song an toàn), đưa nhật ký vào khung."""
@@ -158,7 +167,7 @@ class App:
     def replan(self):
         p = self.cur()
         if p:
-            self.run_cmd(["plan", p] + (["--offline"] if self.offline.get() else []))
+            self.run_cmd(["plan", p] + (["--offline"] if self.offline.get() else []) + self.ai_flag())
 
     def preview(self):
         p = self.cur()

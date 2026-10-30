@@ -1,6 +1,7 @@
 """Đọc config.yaml (có giá trị mặc định nếu thiếu)."""
 import copy
 import os
+import re
 
 import yaml
 
@@ -57,3 +58,34 @@ def load(path=None):
     from render.common import set_font_overrides
     set_font_overrides(cfg.get("fonts"))
     return cfg
+
+
+AI_NAMES = {"claude": "Claude (Claude Code)", "agy": "Antigravity (agy / Gemini)"}
+AI_ROLES = ("writer", "planner", "checker")
+
+
+def apply_ai(cfg, ai):
+    """Dùng một AI cho mọi việc trong lần chạy này (ai = claude | agy; rỗng / auto = theo config.yaml)."""
+    if ai in AI_NAMES:
+        for r in AI_ROLES:
+            cfg[r] = ai
+    return cfg
+
+
+def save_ai(choices, fallback=None, path=None):
+    """Ghi lựa chọn AI vào config.yaml, giữ nguyên các dòng ghi chú."""
+    path = path or os.path.join(ROOT, "config.yaml")
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    items = {k: v for k, v in choices.items() if k in AI_ROLES and v in AI_NAMES}
+    if fallback is not None:
+        items["fallback"] = "true" if fallback else "false"
+    for k, v in items.items():
+        pat = re.compile(rf"^({k}:[ \t]*)[^#\n]*?([ \t]*(#.*)?)$", re.M)
+        if pat.search(text):
+            text = pat.sub(lambda m: m.group(1) + v + (m.group(2) or ""), text, count=1)
+        else:
+            text = f"{k}: {v}\n" + text
+    yaml.safe_load(text)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(text)

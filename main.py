@@ -227,9 +227,10 @@ def main(argv=None):
     ap.add_argument("--name")
     ap.add_argument("--dong-y", dest="dong_y", action="store_true", help="xác nhận giọng của bạn / đã được đồng ý")
     ap.add_argument("--config")
+    ap.add_argument("--ai", help="AI cho lần chạy này: claude | agy (bỏ trống = theo config.yaml)")
     args = ap.parse_args(argv)
     from core import config as C
-    cfg = C.load(args.config)
+    cfg = C.apply_ai(C.load(args.config), args.ai)
     from core import pipeline as P
     c = args.cmd
     try:

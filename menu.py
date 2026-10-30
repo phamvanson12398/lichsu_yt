@@ -98,8 +98,9 @@ def new_video():
     minutes = ask("Thời lượng (phút)", "10")
     lang = choose("Ngôn ngữ lời kể:", [(c, n) for c, n in LANGS])
     quality = choose("Độ nét video:", QUALITIES)
+    ai = pick_ai()
     auto = not yes("Dừng lại để bạn duyệt kịch bản và kế hoạch dựng trước khi làm tiếp?", "c")
-    args = [f"{topic} ({minutes}p, {lang})", "--quality", quality]
+    args = [f"{topic} ({minutes}p, {lang})", "--quality", quality] + ai
     if auto:
         args.append("--auto")
     run(*args)
@@ -107,11 +108,46 @@ def new_video():
         print("\nKhi đã xem / sửa xong script.md (và plan.json), chọn mục 2 'Chạy tiếp dự án'.")
 
 
+def ai_status():
+    try:
+        sys.path.insert(0, ROOT)
+        from core import config as C
+        from core.llm.base import which
+        cfg = C.load()
+        return cfg, {k: bool(which(k)) for k in C.AI_NAMES}
+    except Exception:
+        return {}, {}
+
+
+def pick_ai():
+    """Chọn AI cho lần chạy này -> cờ dòng lệnh (rỗng = theo config.yaml)."""
+    cfg, inst = ai_status()
+    tag = lambda k: "" if inst.get(k, True) else " (chưa cài trên máy)"
+    v = choose("Dùng AI nào để viết kịch bản và lập kế hoạch?", [
+        ("", f"Theo cài đặt (viết: {cfg.get('writer', '?')}, kế hoạch: {cfg.get('planner', '?')})"),
+        ("claude", "Claude" + tag("claude")), ("agy", "Antigravity (agy)" + tag("agy"))])
+    return ["--ai", v] if v else []
+
+
+def set_default_ai():
+    from core import config as C
+    cfg, inst = ai_status()
+    tag = lambda k: "" if inst.get(k, True) else " (chưa cài trên máy)"
+    opts = [("claude", "Claude" + tag("claude")), ("agy", "Antigravity (agy)" + tag("agy"))]
+    roles = {}
+    for r, label in (("writer", "Viết kịch bản"), ("planner", "Lập kế hoạch cảnh"), ("checker", "Kiểm tra sự kiện")):
+        cur = cfg.get(r, "claude")
+        roles[r] = choose(f"{label} — đang dùng: {cur}", opts, default=1 if cur != "agy" else 2)
+    fb = yes("AI đang chọn lỗi / hết lượt thì tự chuyển sang AI còn lại?", "c")
+    C.save_ai(roles, fb)
+    print("✔ Đã lưu vào config.yaml")
+
+
 def continue_project():
     p = pick_project()
     if p:
         q = choose("Độ nét video:", QUALITIES)
-        run("continue", p, "--quality", q)
+        run("continue", p, "--quality", q, *pick_ai())
 
 
 def render_again():
@@ -136,7 +172,7 @@ def diversify():
 
 def replan():
     p = pick_project()
-    if p and run("plan", p) == 0 and yes("Dựng lại video luôn?", "c"):
+    if p and run("plan", p, *pick_ai()) == 0 and yes("Dựng lại video luôn?", "c"):
         q = choose("Độ nét video:", QUALITIES)
         run("render", p, "--quality", q)
         open_path(os.path.join(PROJECTS, p, "output"))
@@ -203,6 +239,7 @@ MENU = [
     ("Mở kịch bản / kế hoạch / thư mục kết quả", open_files),
     ("Giọng đọc", voices),
     ("Làm video mẫu 30 giây (thử máy)", lambda: (run("demo"), open_path(os.path.join(PROJECTS, "demo_bach_dang_938", "output")))),
+    ("Chọn AI mặc định (Claude / Antigravity)", set_default_ai),
     ("Kiểm tra máy đã cài đủ chưa", lambda: run("check")),
     ("Mở giao diện cửa sổ", lambda: subprocess.call([sys.executable, os.path.join(ROOT, "app.py")], cwd=ROOT)),
     ("Mở giao diện web (đẹp hơn, trong trình duyệt)", lambda: subprocess.call([sys.executable, os.path.join(ROOT, "web", "server.py")], cwd=ROOT)),

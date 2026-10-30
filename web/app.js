@@ -125,6 +125,13 @@ function lightbox(src) {
   document.body.appendChild(lb);
 }
 
+const AI_OPTS = [["", "Theo Cài đặt"], ["claude", "Claude"], ["agy", "Antigravity"]];
+const aiSelect = (id) => {
+  const v = localStorage.getItem("hvt_ai") || "";
+  return `<select id="${id}" style="width:auto" title="AI dùng để viết kịch bản / lập kế hoạch">${AI_OPTS.map(([k, l]) =>
+    `<option value="${k}" ${k === v ? "selected" : ""}>AI: ${l}</option>`).join("")}</select>`;
+};
+
 function choiceGroup(el, items, value, onChange) {
   el.innerHTML = items.map(([v, t, s]) => `<div class="choice${v === value ? " on" : ""}" data-v="${esc(v)}"><b>${esc(t)}</b>${s ? `<small>${esc(s)}</small>` : ""}</div>`).join("");
   $$(".choice", el).forEach((c) =>
@@ -186,6 +193,9 @@ function pageNew() {
         <input id="topic" placeholder="vd: Trận Bạch Đằng năm 938 · Trận Hansan năm 1592 · Trận Hastings năm 1066" autofocus></div>
       <div class="grid2">
         <div class="field"><label>Thời lượng (phút)</label><input id="minutes" type="number" min="1" max="60" value="10"></div>
+        <div class="field"><label>AI viết kịch bản &amp; lập kế hoạch</label><div class="choices" id="c-ai"></div></div>
+      </div>
+      <div class="grid2">
         <div class="field"><label>Khi AI hết lượt / không có AI</label>
           <select id="offline"><option value="">Dùng AI (claude / agy)</option><option value="1">Không dùng AI để lập plan (cần tự có script.md)</option></select></div>
       </div>
@@ -197,12 +207,19 @@ function pageNew() {
   choiceGroup($("#c-lang"), Object.entries(LANGS).map(([k, v]) => [k, v, k === "vi" ? "Mặc định" : ""]), st.lang, (v) => (st.lang = v));
   choiceGroup($("#c-q"), QUALITIES, st.quality, (v) => (st.quality = v));
   choiceGroup($("#c-review"), [["1", "Dừng để duyệt", "Xem / sửa kịch bản và kế hoạch trước"], ["0", "Chạy hết một mạch", "Không dừng"]], st.review, (v) => (st.review = v));
+  st.ai = localStorage.getItem("hvt_ai") || "";
+  api("/api/ai").then((a) => {
+    const tag = (k) => (a.installed[k] ? "" : " — chưa cài");
+    choiceGroup($("#c-ai"), [["", "Theo Cài đặt", `viết: ${a.roles.writer}, kế hoạch: ${a.roles.planner}`],
+      ["claude", "Claude", "Claude Code" + tag("claude")], ["agy", "Antigravity", "agy / Gemini" + tag("agy")]], st.ai,
+      (v) => { st.ai = v; try { localStorage.setItem("hvt_ai", v); } catch (e) { /* bỏ qua */ } });
+  }).catch(() => {});
   $("#topic").onkeydown = (e) => { if (e.key === "Enter" && !e.isComposing) $("#go").click(); };
   $("#go").onclick = async () => {
     const topic = $("#topic").value.trim();
     if (!topic) return toast("Nhập chủ đề trước đã", true);
     const r = await act(() => api("/api/projects", { method: "POST", json: {
-      topic, minutes: $("#minutes").value, lang: st.lang, quality: st.quality, auto: st.review === "0", offline: !!$("#offline").value } }));
+      topic, minutes: $("#minutes").value, lang: st.lang, quality: st.quality, auto: st.review === "0", offline: !!$("#offline").value, ai: st.ai } }));
     if (!r) return;
     watchJob(r.job, `Tạo video: ${topic}`, () => location.hash === `#/p/${r.project}` && route());
     setTimeout(() => (location.hash = `#/p/${encodeURIComponent(r.project)}`), 1200);
@@ -242,6 +259,7 @@ async function pageProject(name) {
         <button class="ghost" data-a="preview" ${running ? "disabled" : ""}>🖼 Xem trước</button>
         <button class="ghost" data-a="voice-gen" ${running ? "disabled" : ""}>🎙 Tạo giọng</button>
         <span class="grow"></span>
+        ${aiSelect("a-ai")}
         <button class="ghost small" data-a="diversify" title="Đổi góc nhìn các cảnh lặp nhau, không cần AI, không đổi lời đọc" ${running ? "disabled" : ""}>🎨 Đa dạng cảnh</button>
         <button class="ghost small" data-a="plan" ${running ? "disabled" : ""}>Lập lại kế hoạch</button>
         <button class="ghost small" data-a="script" ${running ? "disabled" : ""}>Viết lại kịch bản</button>
@@ -256,8 +274,9 @@ async function pageProject(name) {
     <div id="tab"></div>`;
 
   $("#a-q").onchange = (e) => localStorage.setItem("hvt_quality", e.target.value);
+  $("#a-ai").onchange = (e) => { try { localStorage.setItem("hvt_ai", e.target.value); } catch (er) { /* bỏ qua */ } };
   const run = async (action) => {
-    const r = await act(() => api(`/api/projects/${encodeURIComponent(name)}/run`, { method: "POST", json: { action, quality: $("#a-q").value } }));
+    const r = await act(() => api(`/api/projects/${encodeURIComponent(name)}/run`, { method: "POST", json: { action, quality: $("#a-q").value, ai: $("#a-ai").value } }));
     if (r) {
       watchJob(r.job, `${action}: ${name}`, () => location.hash === `#/p/${encodeURIComponent(name)}` && pageProject(name));
       setTimeout(() => pageProject(name), 400);
@@ -463,12 +482,32 @@ async function pageVoices() {
 
 // ------------------------------------------------------------------ trang: cài đặt
 async function pageSettings() {
-  const c = await act(() => api("/api/config"));
+  const [c, a] = await Promise.all([act(() => api("/api/config")), act(() => api("/api/ai"))]);
+  const roles = [["writer", "Viết kịch bản"], ["planner", "Lập kế hoạch cảnh"], ["checker", "Kiểm tra sự kiện"]];
+  const inst = (k) => (a && a.installed[k] ? "đã cài" : "chưa cài trên máy");
   view.innerHTML = `
-    <div class="head"><div><h1>Cài đặt</h1><small>Sửa trực tiếp config.yaml — chọn AI cho từng việc, ngôn ngữ mặc định, độ nét, âm thanh…</small></div>
-      <span class="grow"></span><button class="ghost" id="chk">✓ Kiểm tra máy</button><button id="save">💾 Lưu</button></div>
-    <div class="card"><textarea class="code" id="cfg" spellcheck="false">${esc(c ? c.text : "")}</textarea></div>`;
+    <div class="head"><div><h1>Cài đặt</h1><small>Chọn AI cho từng việc, hoặc sửa trực tiếp config.yaml bên dưới.</small></div>
+      <span class="grow"></span><button class="ghost" id="chk">✓ Kiểm tra máy</button></div>
+    <div class="card">
+      <h3 style="margin-top:0">AI dùng cho từng việc</h3>
+      ${roles.map(([r, l]) => `<div class="field"><label>${l}</label><div class="choices" id="ai-${r}"></div></div>`).join("")}
+      <div class="field"><label>Khi AI đang chọn lỗi / hết lượt</label><div class="choices" id="ai-fb"></div></div>
+      <div class="row"><button id="ai-save">💾 Lưu lựa chọn AI</button>
+        <small class="muted">Trang Tạo video và trang dự án còn có ô “AI:” để chọn riêng cho một lần chạy.</small></div>
+    </div>
+    <div class="card" style="margin-top:18px">
+      <div class="row"><h3 style="margin:0">config.yaml</h3><span class="grow"></span><button class="ghost" id="save">💾 Lưu config.yaml</button></div>
+      <textarea class="code" id="cfg" spellcheck="false" style="margin-top:12px">${esc(c ? c.text : "")}</textarea></div>`;
   $("#chk").onclick = () => $("#btn-check").click();
+  const st = { roles: Object.assign({}, a ? a.roles : {}), fallback: a ? a.fallback : true };
+  roles.forEach(([r]) => choiceGroup($(`#ai-${r}`), [["claude", "Claude", inst("claude")], ["agy", "Antigravity (agy)", inst("agy")]],
+    st.roles[r], (v) => (st.roles[r] = v)));
+  choiceGroup($("#ai-fb"), [["1", "Tự chuyển sang AI còn lại", "Khuyên dùng"], ["0", "Dừng lại báo lỗi", ""]], st.fallback ? "1" : "0",
+    (v) => (st.fallback = v === "1"));
+  $("#ai-save").onclick = async () => {
+    const r = await act(() => api("/api/ai", { method: "PUT", json: st }), "Đã lưu lựa chọn AI");
+    if (r) pageSettings();
+  };
   $("#save").onclick = () => act(() => api("/api/config", { method: "PUT", json: { text: $("#cfg").value } }), "Đã lưu config.yaml");
 }
 
