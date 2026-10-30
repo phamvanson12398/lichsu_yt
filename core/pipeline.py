@@ -292,7 +292,7 @@ def step_render(proj, cfg, log=print, draft=False, quality=None):
     rcfg = dict(cfg["render"])
     t0 = time.time()
     silent = render_video(plan, tl, proj.dir, rcfg, draft=draft, log=log, quality=quality)
-    log("🔉 Trộn âm thanh (giọng + hiệu ứng + nhạc nền tự tạo)...")
+    log(f"🔉 Trộn âm thanh: giọng + tiếng động + nhạc nền tự tạo cho {total / 60:.0f} phút (máy đang tính, có thể mất vài phút)...")
     clips, events, beds, moods = [], [], [], []
     for e in tl:
         for (t, f) in e["clips"]:
@@ -311,6 +311,7 @@ def step_render(proj, cfg, log=print, draft=False, quality=None):
     wav = proj.p("cache", "mix.wav")
     mixer.write_wav(wav, audio)
     out = proj.p("output", "video_draft.mp4" if draft else "video_final.mp4")
+    log("🎚  Cân âm lượng chuẩn YouTube và gắn âm thanh vào video...")
     mux(silent, wav, out, acfg.get("loudness", -16))
     export.write_srt(tl, proj.p("output", "phu_de.srt"))
     md = proj.load("script.md") or ""

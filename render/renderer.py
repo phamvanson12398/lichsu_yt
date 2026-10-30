@@ -432,6 +432,7 @@ def render_video(plan, timeline, proj_dir, cfg, draft=False, log=print, only=Non
                 os.remove(f)
             except OSError:
                 pass
+    log(f"🔗 Ghép {len(outs)} cảnh thành một video liền...")
     lst = os.path.join(proj_dir, "cache", "concat.txt")
     with open(lst, "w", encoding="utf-8") as f:
         for o in outs:
