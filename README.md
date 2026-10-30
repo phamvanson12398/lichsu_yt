@@ -11,7 +11,18 @@ rồi xuất `video_final.mp4` + `youtube.txt`. Tool **không tự đăng YouTub
 
 👉 Cài đặt từng bước: **[HUONG_DAN_CAI_DAT.md](HUONG_DAN_CAI_DAT.md)**
 
-## Dùng nhanh
+## Dùng nhanh trên Windows (bấm đúp)
+
+| File | Việc |
+|---|---|
+| `CAI_DAT.bat` | Cài lần đầu: kiểm tra / cài Python 3.12, thư viện, FFmpeg (qua winget), rồi kiểm tra máy |
+| `CAI_GIONG_DOC.bat` | Cài giọng đọc OmniVoice + PyTorch (tự chọn bản GPU NVIDIA hay CPU) |
+| `CHAY_TOOL.bat` | **Menu tiếng Việt**: tạo video mới, chạy tiếp, xem trước, dựng lại, giọng đọc, video mẫu... |
+| `GIAO_DIEN.bat` | Mở giao diện cửa sổ |
+
+Lần đầu bấm `CHAY_TOOL.bat` mà chưa cài, tool tự chạy phần cài đặt.
+
+## Dùng nhanh bằng dòng lệnh
 
 ```
 python main.py demo                                   # video mẫu ~35 giây (không cần AI, giọng)

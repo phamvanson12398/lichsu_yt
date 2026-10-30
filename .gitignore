@@ -7,3 +7,4 @@ voices/*
 assets_code/custom/*_preview.jpg
 *.tmp.mp4
 .venv/
+.da_cai_dat

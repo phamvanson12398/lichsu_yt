@@ -5,6 +5,16 @@ Tài liệu cho người không phải lập trình viên. Làm lần lượt t�
 
 ---
 
+## 0. Cách nhanh nhất: bấm đúp file .bat
+
+1. Bấm đúp **`CAI_DAT.bat`**: tool tự kiểm tra / cài Python, thư viện, FFmpeg. Nếu nó báo "đóng cửa sổ và chạy lại" thì làm theo.
+2. (Muốn có giọng đọc) bấm đúp **`CAI_GIONG_DOC.bat`**.
+3. Dùng tool: bấm đúp **`CHAY_TOOL.bat`**, rồi chọn số trong menu (1 = tạo video mới).
+   Hoặc **`GIAO_DIEN.bat`** để dùng giao diện cửa sổ.
+
+Nếu Windows hiện cảnh báo "Windows protected your PC": bấm **More info** → **Run anyway**.
+Các mục dưới đây là cách cài bằng tay, dùng khi file .bat báo lỗi.
+
 ## 1. Cài Python 3.11 trở lên
 
 1. Vào https://www.python.org/downloads/ → bấm **Download Python 3.12** (hoặc mới hơn).
