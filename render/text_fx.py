@@ -64,9 +64,10 @@ class TextFX:
             self.words = []   # (layer, x, y)
             lh = rf.metrics()[0] + rf.metrics()[1] + 26 * k
             y = self.cy - lh * (len(lines) - 1) / 2
-            sp = 22 * k
+            pad = max(3, int(size * k) // 10)
+            sp = rf.length(" ") - 2 * pad + 4 * k
             for ln in lines:
-                ws = [text_layer(w, "serif_bold", size * k) for w in ln.split()]
+                ws = [text_layer(w, "serif_bold", size * k, pad=pad) for w in ln.split()]
                 x = (OW - (sum(w.width for w in ws) + sp * (len(ws) - 1))) / 2
                 for w in ws:
                     self.words.append((w, x, y))

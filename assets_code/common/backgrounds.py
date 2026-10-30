@@ -103,16 +103,26 @@ def draw_clouds(c, x, y, scale, t, n=6, **p):
     d = ImageDraw.Draw(lay)
     rr = random.Random(c.seed + 5)
     col = c.pal["cloud"]
+    shade = mix(col, c.pal["sky"][1], 0.45)
+    lit = lerp(col, (255, 255, 255), 0.25)
     for _ in range(int(n)):
         cx = rr.uniform(c.left, c.right)
-        cy = c.py(rr.uniform(0.06, c.horizon * 0.6))
-        w = rr.uniform(220, 520) * c.u
-        for k in range(rr.randint(4, 8)):
-            ex = cx + rr.uniform(-w / 2, w / 2)
-            ey = cy + rr.uniform(-w * 0.08, w * 0.06)
-            r = rr.uniform(w * 0.12, w * 0.25)
-            d.ellipse([ex - r * 1.6, ey - r * 0.6, ex + r * 1.6, ey + r * 0.6], fill=col + (150,))
-    lay = lay.filter(ImageFilter.GaussianBlur(18 * c.u))
+        cy = c.py(rr.uniform(0.07, c.horizon * 0.62))
+        w = rr.uniform(200, 460) * c.u
+        h = w * rr.uniform(0.16, 0.24)
+        puffs = []
+        for k in range(rr.randint(5, 9)):
+            ex = cx + rr.uniform(-0.45, 0.45) * w
+            r = rr.uniform(0.22, 0.42) * h * 2.2 * (1 - abs(ex - cx) / w)
+            puffs.append((ex, cy - r * rr.uniform(0.2, 0.6), max(r, h * 0.35)))
+        d.rounded_rectangle([cx - w * 0.55, cy - h * 0.25, cx + w * 0.55, cy + h * 0.35], radius=h * 0.3, fill=shade + (200,))
+        for ex, ey, r in puffs:          # mặt dưới tối, đỉnh sáng -> có khối
+            d.ellipse([ex - r, ey - r * 0.8, ex + r, ey + r * 0.8], fill=shade + (205,))
+        for ex, ey, r in puffs:
+            d.ellipse([ex - r * 0.85, ey - r * 0.85, ex + r * 0.8, ey + r * 0.45], fill=col + (215,))
+        for ex, ey, r in puffs[: len(puffs) // 2]:
+            d.ellipse([ex - r * 0.5, ey - r * 0.8, ex + r * 0.45, ey - r * 0.1], fill=lit + (160,))
+    lay = lay.filter(ImageFilter.GaussianBlur(5 * c.u))
     c.img.alpha_composite(lay)
     c.add_effect(type="drift", depth=0.03, speed=6.0 * c.u)
 

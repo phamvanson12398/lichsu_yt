@@ -126,7 +126,8 @@ def make_visual(sc, plan, dur, OW, OH, fps, cfg, seed):
     common = dict(supersample=cfg.get("supersample", 2.0), grain=cfg.get("grain", 7.0), grain_n=4 if cfg.get("grain_animated") else 1)
     typ = sc.get("type", "narration")
     if typ == "map":
-        return MapVisual(sc.get("map", {}), OW, OH, fps, dur, title=sc.get("map", {}).get("title") or plan.get("title", ""), seed=seed)
+        return MapVisual(sc.get("map", {}), OW, OH, fps, dur, title=sc.get("map", {}).get("title") or plan.get("title", ""), seed=seed,
+                         subtitles=bool(sc.get("narration")) and cfg.get("burn_subtitles", True))
     if sc.get("scene"):
         return SceneVisual(sc["scene"], OW, OH, fps, dur, palette=pal_name, country=country,
                            motion=sc.get("motion", "static"), particles=sc.get("particles", []), seed=seed, **common)

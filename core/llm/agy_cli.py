@@ -8,7 +8,7 @@ Lưu ý: nếu bản agy của bạn không đọc prompt từ stdin, đặt  ag
 """
 import json
 
-from core.llm.base import CLIBackend, LLMError
+from core.llm.base import CLIBackend, LLMError, which
 
 
 class AgyCLI(CLIBackend):
@@ -21,7 +21,9 @@ class AgyCLI(CLIBackend):
         args += ["--output-format", "json"]
         to = int(self.cfg.get("timeout", 900))
         args += ["--print-timeout", f"{max(1, to // 60)}m"]
-        if schema and self.cfg.get("use_json_schema", True):
+        exe = (which(self.cmd) or "").lower()
+        # qua file .cmd/.bat trên Windows, cmd.exe có thể làm hỏng dấu " trong JSON -> bỏ --json-schema (tool vẫn tự kiểm JSON)
+        if schema and self.cfg.get("use_json_schema", True) and not exe.endswith((".cmd", ".bat")):
             args += ["--json-schema", json.dumps(schema, ensure_ascii=False)]
         if self.cfg.get("model"):
             args += ["--model", str(self.cfg["model"])]

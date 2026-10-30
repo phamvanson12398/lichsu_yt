@@ -56,7 +56,9 @@ def write_youtube(path, plan, timeline, script_data=None, script_parsed=None, so
     if voice_name:
         L.append("Giọng đọc được tạo bằng mô hình OmniVoice (k2-fsa) từ giọng mẫu có sự đồng ý.")
     if sources_md:
-        L += ["", "Nguồn tham khảo chính:"] + [ln for ln in sources_md.splitlines() if ln.startswith("- ")][:15]
+        import re
+        plain = [re.sub(r"\*\*|(?<!\w)_|_(?!\w)", "", ln) for ln in sources_md.split("###")[0].splitlines() if ln.startswith("- ")]
+        L += ["", "Nguồn tham khảo chính:"] + plain[:15]
     L += ["", "=== TAG ===", ", ".join(t for t in tags if t), "",
           "=== NHẮC VIỆC TRƯỚC KHI ĐĂNG ===",
           "- Xem lại toàn bộ video, nghe các câu được đánh dấu 'nên nghe lại' (nếu có).",

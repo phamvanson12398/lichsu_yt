@@ -27,8 +27,10 @@ FEATURES = ["river", "coast_right", "coast_left", "coast_top", "coast_bottom", "
 
 
 class MapVisual:
-    def __init__(self, spec, OW, OH, fps, dur, title="", seed=4, grain=5.0):
+    def __init__(self, spec, OW, OH, fps, dur, title="", seed=4, grain=5.0, subtitles=False):
         self.spec = spec or {}
+        self.subtitles = subtitles   # có phụ đề -> đưa chú thích lên trên vùng phụ đề
+        self._placed = {}
         self.OW, self.OH, self.fps, self.dur = OW, OH, fps, dur
         self.k = OW / 1920.0
         self.pal = palettes.get("giay_co")
@@ -105,7 +107,8 @@ class MapVisual:
         rr = random.Random(4)
         arr_now = np.asarray(im)
         n_leg = len(self.spec.get("legend") or {}) or len({a.get("side", "enemy") for a in self.spec.get("arrows", []) if a.get("label")})
-        busy = [(0, 0, 760 * k, 200 * k), (0, OH - (90 + 44 * n_leg) * k, 760 * k, OH), (OW - 260 * k, 0, OW, 260 * k)]
+        leg_top = OH * (0.78 if self.subtitles else 1.0) - (40 + 44 * n_leg) * k
+        busy = [(0, 0, 760 * k, 200 * k), (0, leg_top, 760 * k, OH), (OW - 260 * k, 0, OW, 260 * k)]
 
         def free(x, y):
             return not any(a <= x <= c and b <= y <= d for a, b, c, d in busy)
@@ -145,7 +148,8 @@ class MapVisual:
                 if a.get("label"):
                     legend.setdefault(a.get("side", "enemy"), a["label"])
         if legend:
-            y = OH - 70 * k - 44 * k * len(legend)
+            bottom = OH * (0.78 if self.subtitles else 1.0) - (20 if self.subtitles else 70) * k
+            y = bottom - 44 * k * len(legend)
             x = 80 * k
             for side in ("enemy", "ally"):
                 if side not in legend:
@@ -174,13 +178,28 @@ class MapVisual:
         d.polygon([tip, l_, r_], fill=col, outline=(40, 20, 10))
 
     def _label(self, fr, txt, xy, kind, col, a, size=34):
-        if a <= 0:
-            return
         key = (txt, kind, size, col)
         if key not in self.label_layers:
             self.label_layers[key] = text_layer(txt, kind, size * self.k, fill=col, shadow=False)
         lay = self.label_layers[key]
-        fr.alpha_composite(with_alpha(lay, a), (int(xy[0]), int(xy[1])))
+        pos = self._place(key, xy, lay.size)
+        if a > 0:
+            fr.alpha_composite(with_alpha(lay, a), pos)
+
+    def _place(self, key, xy, size):
+        """Đặt nhãn không chồng lên nhãn khác (dời xuống / lên từng bước), giữ trong khung."""
+        if key in self._placed:
+            return self._placed[key][:2]
+        w, h = size
+        x = int(min(max(40 * self.k, xy[0]), self.OW - w - 40 * self.k))
+        y0 = int(min(max(40 * self.k, xy[1]), self.OH * (0.78 if self.subtitles else 0.95) - h))
+        others = list(self._placed.values())
+        for step in [0, 1, -1, 2, -2, 3, -3, 4, -4]:
+            y = y0 + step * int(h * 0.9)
+            if all(x + w < ox or ox + ow < x or y + h < oy or oy + oh < y for ox, oy, ow, oh in others):
+                break
+        self._placed[key] = (x, y, w, h)
+        return x, y
 
     def compose(self, t):
         fr = self.base.copy()

@@ -53,7 +53,7 @@ GIÁ TRỊ HỢP LỆ:
 - text_style: {styles}
 - sfx / sfx_at tag: {sfx}
 - scene.time_of_day: dawn, day, dusk, night | scene.weather: clear, cloudy, overcast, rain, snow, fog
-- map.features: {features} | map.markers kind: {markers} | arrows side: enemy (đỏ, bên tấn công) / ally (xanh)
+- map: toạ độ 0–1; có lời đọc thì giữ nhãn / mũi tên trong y < 0.75 (phụ đề ở dưới). map.features: {features} | map.markers kind: {markers} | arrows side: enemy (đỏ, bên tấn công) / ally (xanh)
 - palettes: {palettes}
 
 THƯ VIỆN THÀNH PHẦN (background dùng trong "background", còn lại dùng trong "elements"):
