@@ -33,6 +33,7 @@ class MapVisual:
         self.spec = spec or {}
         self.subtitles = subtitles   # có phụ đề -> đưa chú thích lên trên vùng phụ đề
         self._placed = {}
+        self._reserved = []      # vùng cố định (tiêu đề, la bàn, chú thích màu) — nhãn không được đè lên
         self.OW, self.OH, self.fps, self.dur = OW, OH, fps, dur
         self.k = OW / 1920.0
         self.pal = palettes.get("giay_co")
@@ -43,6 +44,11 @@ class MapVisual:
         for a in self.spec.get("arrows", []):
             pts = [(x * OW, y * OH) for x, y in a["path"]]
             self.arrows.append((a, smooth_path(pts, 260)))
+        # đường mũi tên cũng là vùng nhãn không được đè lên (chữ nằm trên nét mũi tên rất khó đọc)
+        r = 22 * self.k
+        for _, path in self.arrows:
+            for x, y in path[::8]:
+                self._reserved.append((x - r, y - r, 2 * r, 2 * r))
         rs = random.Random(9)
         self.stake_dots = [(rs.uniform(0, 6.28), rs.uniform(0, 1) ** .5, rs.uniform(0, .6)) for _ in range(30)]
         self.label_layers = {}
@@ -139,7 +145,11 @@ class MapVisual:
         d.rectangle([34 * k, 34 * k, OW - 34 * k, OH - 34 * k], outline=(110, 80, 45), width=max(1, int(2 * k)))
         if self.title:
             RichFont("serif_bold", 48 * k).draw(d, (80 * k, 70 * k), self.title, pal["ink"])
-        RichFont("serif_italic", 30 * k).draw(d, (82 * k, 136 * k), N(self.ui("map_note")), pal["ink_light"])
+            self._reserved.append((70 * k, 60 * k, RichFont("serif_bold", 48 * k).length(self.title) + 20 * k, 70 * k))
+        note = N(self.ui("map_note"))
+        RichFont("serif_italic", 30 * k).draw(d, (82 * k, 136 * k), note, pal["ink_light"])
+        self._reserved.append((70 * k, 130 * k, RichFont("serif_italic", 30 * k).length(note) + 20 * k, 50 * k))
+        self._reserved.append((OW - 200 * k, 20 * k, 180 * k, 210 * k))
         cx, cy = OW - 140 * k, 140 * k
         d.polygon([(cx, cy - 60 * k), (cx + 14 * k, cy), (cx, cy + 60 * k), (cx - 14 * k, cy)], fill=(110, 80, 45))
         d.ellipse([cx - 34 * k, cy - 34 * k, cx + 34 * k, cy + 34 * k], outline=(110, 80, 45), width=max(1, int(2 * k)))
@@ -153,6 +163,9 @@ class MapVisual:
             bottom = OH * (0.78 if self.subtitles else 1.0) - (20 if self.subtitles else 70) * k
             y = bottom - 44 * k * len(legend)
             x = 80 * k
+            wmax = max(RichFont("serif", 30 * k).length(N(f"{self.ui('red') if sd == 'enemy' else self.ui('blue')}: {legend[sd]}"))
+                       for sd in legend)
+            self._reserved.append((x - 10 * k, y - 10 * k, 96 * k + wmax + 30 * k, 44 * k * len(legend) + 14 * k))
             for side in ("enemy", "ally"):
                 if side not in legend:
                     continue
@@ -195,11 +208,23 @@ class MapVisual:
         w, h = size
         x = int(min(max(40 * self.k, xy[0]), self.OW - w - 40 * self.k))
         y0 = int(min(max(40 * self.k, xy[1]), self.OH * (0.78 if self.subtitles else 0.95) - h))
-        others = list(self._placed.values())
-        for step in [0, 1, -1, 2, -2, 3, -3, 4, -4]:
-            y = y0 + step * int(h * 0.9)
-            if all(x + w < ox or ox + ow < x or y + h < oy or oy + oh < y for ox, oy, ow, oh in others):
+        others = list(self._placed.values()) + self._reserved
+        top, low = 40 * self.k, self.OH * (0.78 if self.subtitles else 0.95) - h
+        right = self.OW - w - 40 * self.k
+
+        def ok(x, y):
+            return top <= y <= low and all(x + w < ox or ox + ow < x or y + h < oy or oy + oh < y for ox, oy, ow, oh in others)
+        best = None
+        for dy in [0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5]:          # dời lên / xuống trước, rồi sang ngang
+            for dx in [0, 1, -1, 2, -2, 3]:
+                cx = int(min(max(40 * self.k, x + dx * w * 0.5), right))
+                cy = int(y0 + dy * h * 0.9)
+                if ok(cx, cy):
+                    best = (cx, cy)
+                    break
+            if best:
                 break
+        x, y = best or (x, y0)
         self._placed[key] = (x, y, w, h)
         return x, y
 

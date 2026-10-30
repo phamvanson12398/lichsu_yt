@@ -311,22 +311,40 @@ def ffmpeg_encoder(path, OW, OH, fps, cfg):
                             + ["-r", str(fps), "-video_track_timescale", str(fps * 512), "-f", "mp4", path], stdin=subprocess.PIPE)
 
 
-def code_version():
+# Mã vẽ ảnh hưởng tới từng loại cảnh — sửa bản đồ thì chỉ cảnh bản đồ phải dựng lại, không phải cả video.
+# (renderer.py không nằm ở đây: đổi cách ghép khung trong file này thì tăng "render_v" trong scene_hash.)
+CODE_SHARED = ["render/common.py", "render/text_fx.py", "render/transitions.py", "render/palettes.py"]
+CODE_BY_KIND = {
+    "map": ["render/map_anim.py"],
+    "graphic": ["render/infographic.py", "assets_code/common/shapes.py"],
+    "scene": ["render/scene.py", "render/motion.py", "render/particles.py", "assets_code/**/*.py", "assets_code/custom/status.json"],
+}
+
+
+def scene_kind(sc):
+    from render import infographic
+    typ = sc.get("type")
+    if typ == "map":
+        return "map"
+    if typ in infographic.TYPES:
+        return "graphic"
+    return "scene"
+
+
+def code_version(kind=None):
     h = hashlib.sha1()
-    for d in ("render", "assets_code"):
-        for p in sorted(glob.glob(os.path.join(ROOT, d, "**", "*.py"), recursive=True)):
-            with open(p, "rb") as f:
-                h.update(f.read())
-    st = os.path.join(ROOT, "assets_code", "custom", "status.json")
-    if os.path.exists(st):
-        h.update(open(st, "rb").read())
+    pats = CODE_SHARED + (CODE_BY_KIND.get(kind, []) if kind else [p for v in CODE_BY_KIND.values() for p in v])
+    files = sorted({f for pat in pats for f in glob.glob(os.path.join(ROOT, pat), recursive=True)})
+    for p in files:
+        with open(p, "rb") as f:
+            h.update(f.read())
     return h.hexdigest()[:12]
 
 
 def scene_hash(entry, plan, OW, OH, fps, cfg, ver):
     key = {"scene": entry["scene"], "dur": entry["dur"], "cues": entry["cues"], "OW": OW, "OH": OH, "fps": fps,
            "pal": plan.get("palette"), "country": plan.get("country"), "title": plan.get("title"), "lang": plan.get("language"),
-           "render_v": 2, "cfg": {k: cfg.get(k) for k in ("supersample", "grain", "grain_animated", "burn_subtitles", "subtitle_size", "fade", "crf",
+           "render_v": 3, "cfg": {k: cfg.get(k) for k in ("supersample", "grain", "grain_animated", "burn_subtitles", "subtitle_size", "fade", "crf",
                                           "preset", "tune", "sharpen")}, "ver": ver}
     return hashlib.sha1(json.dumps(key, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()[:16]
 
@@ -432,12 +450,16 @@ def render_video(plan, timeline, proj_dir, cfg, draft=False, log=print, only=Non
     cfg = resolve_quality(cfg, draft, quality)
     OW, OH = tuple(cfg["size"])
     fps = int(cfg.get("fps", 30))
-    ver = code_version()
+    vers = {k: code_version(k) for k in CODE_BY_KIND}
     cdir = os.path.join(proj_dir, "cache", "scenes_" + cfg["quality"])
     os.makedirs(cdir, exist_ok=True)
     jobs, outs = [], []
     for e in timeline:
         sid = e["scene"]["id"]
+        sc = e["scene"]
+        ver = vers["scene"] if sc.get("scene") or sc.get("scene2") else vers[scene_kind(sc)]
+        if scene_kind(sc) != "scene" and (sc.get("scene") or sc.get("scene2")):
+            ver = vers["scene"] + vers[scene_kind(sc)]
         h = scene_hash(e, plan, OW, OH, fps, cfg, ver)
         out = os.path.join(cdir, f"scene_{int(sid):03d}_{h}.mp4") if str(sid).isdigit() else os.path.join(cdir, f"scene_{sid}_{h}.mp4")
         outs.append(out)
