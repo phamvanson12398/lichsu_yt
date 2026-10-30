@@ -204,6 +204,32 @@ def test_json_repair():
     assert extract_json('{\u201ct\u201d: \u201cBạch Đằng\u201d}') == {"t": "Bạch Đằng"}
 
 
+
+def test_long_script_in_parts():
+    """Video dài: dàn ý + viết từng phần (AI giả lập)."""
+    from core import script_writer as S
+    calls = []
+
+    class FakeRouter:
+        def ask(self, role, prompt, schema=None, validator=None, **kw):
+            calls.append(prompt[:40])
+            if schema is S.OUTLINE_SCHEMA:
+                d = {"title": "T", "country": "vietnam", "era": "x", "year": 938, "big_question": "Vì sao?",
+                     "secret": {"what": "cọc"}, "youtube": {"titles": ["a"], "description": "b", "tags": ["c"]},
+                     "sections": [{"role": r, "heading": f"H {r}", "mood": "cao_trao", "beats": ["ý 1", "ý 2", "ý 3"]}
+                                  for r in S.ROLE_NAMES]}
+            else:
+                n = int(prompt.split("Độ dài: khoảng ")[1].split(" ")[0])
+                d = {"paragraphs": [" ".join(["chữ"] * (n - 3)) + " có phải không?"], "sources": [{"claim": "c", "source": "s"}]}
+            assert not (validator and validator(d)), validator(d)
+            return d
+    data = S.write(FakeRouter(), {"topic": "Trận Bạch Đằng năm 938", "minutes": 30, "language": "vi"}, {"words_per_minute": 200})
+    assert [x["role"] for x in data["sections"]] == S.ROLE_NAMES
+    assert len(calls) > 8                          # dàn ý + từng phần (phần dài chia nhỏ)
+    assert abs(S.word_count(data) - S.target_words(30)) < S.target_words(30) * 0.1
+    assert S.parse_markdown(S.to_markdown(data, {"minutes": 30}))["sections"][4]["role"] == "battle"
+
+
 if __name__ == "__main__":
     n = 0
     for k, fn in list(globals().items()):

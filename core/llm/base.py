@@ -96,6 +96,8 @@ def extract_json(text):
         j = s.rfind(close)
         if i != -1 and j > i:
             cands.append(s[i:j + 1])
+    if not s:
+        raise ValueError("AI trả lời RỖNG — thường do nội dung cần viết quá dài so với giới hạn một lần trả lời của AI")
     if not cands:
         raise ValueError("không thấy khối JSON nào ({...}) trong câu trả lời — AI trả lời bằng chữ thường. "
                          "Đầu câu trả lời: " + s[:200].replace("\n", " "))

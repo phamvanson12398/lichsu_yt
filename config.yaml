@@ -6,6 +6,7 @@ writer: agy          # ai viết kịch bản
 planner: claude      # ai lập plan.json
 checker: claude      # ai kiểm tra lại sự kiện
 check_facts: true    # có chạy bước kiểm tra sự kiện không (tốn thêm 1 lần gọi)
+script_parts_from_minutes: 12   # video từ bấy nhiêu phút trở lên: AI lập dàn ý rồi viết từng phần (tránh quá giờ / trả lời rỗng)
 fallback: true       # một bên lỗi / hết lượt thì tự chuyển sang bên kia
 
 claude:

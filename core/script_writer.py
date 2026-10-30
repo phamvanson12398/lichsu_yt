@@ -217,6 +217,8 @@ def write(router, info, cfg, log=print):
     words = target_words(info["minutes"], wpm)
     bud = role_budgets(info["minutes"], words)
     unit_short = LI["unit"].split(" (")[0]
+    if info["minutes"] >= float(cfg.get("script_parts_from_minutes", 12)):
+        return write_in_parts(router, info, cfg, log, lg, LI, wpm, words, bud, unit_short)
     roles = "\n".join(f"  {i + 1}. role \"{r}\" — {title} (~{bud[r]} {unit_short}, ~{bud[r] / wpm:.1f} phút): {how}"
                       for i, (r, _, _, title, how) in enumerate(ROLES))
     prompt = PROMPT.format(lang=LI["name"], topic=info["topic"], country=info.get("country") or "?", unit=LI["unit"],
@@ -244,11 +246,177 @@ def write(router, info, cfg, log=print):
     return data
 
 
+# ------------------------------------------------------------------ video dài: viết theo từng phần
+OUTLINE = """Bạn là biên kịch phim tài liệu lịch sử cho kênh YouTube không lộ mặt (lời kể bằng {lang}).
+Mục tiêu số 1: GIỮ CHÂN NGƯỜI XEM đến cuối video mà vẫn ĐÚNG LỊCH SỬ. Video dài nên sẽ viết theo từng phần;
+BƯỚC NÀY CHỈ LẬP DÀN Ý (chưa viết lời kể).
+
+CHỦ ĐỀ: {topic}
+Thông tin tool đoán được (có thể sai, hãy sửa nếu cần): nước = {country}, thời kỳ = {era}, năm = {year}
+THỜI LƯỢNG: {minutes} phút (lời kể tổng ~{words} {unit}).
+
+NGUYÊN TẮC: kể như MỘT CÂU CHUYỆN có nhân vật, xung đột, câu hỏi chưa trả lời; cả video trả lời MỘT câu "vì sao" rõ ràng;
+giữ một "bí mật" (mưu kế chính / sự thật bất ngờ) để hé lộ ở cao trào. Không bịa chi tiết, con số, lời thoại.
+Nếu chủ đề không phải một trận đánh, giữ đúng tinh thần bố cục: xung đột, bước ngoặt, cao trào, cái giá, di sản.
+
+BỐ CỤC BẮT BUỘC — đúng 7 phần, đúng thứ tự, mỗi phần có "role":
+{roles}
+
+Mỗi phần cho: "heading" = TÊN CHƯƠNG GÂY TÒ MÒ bằng {lang} (vd "Sai lầm của Ô Mã Nhi", không phải "Diễn biến");
+"mood" (chọn trong: {moods}); "beats" = 4–12 ý chính theo đúng thứ tự kể (viết tiếng Việt, cụ thể: ai, làm gì, ở đâu, chi tiết
+đắt giá, con số có nguồn, câu treo cuối phần). Phần battle chia rõ 2–3 giai đoạn trong beats.
+
+"voice_suggestion": thuộc tính tiếng Anh của OmniVoice voice design (vd "male, middle-aged, low pitch").
+"youtube": 3–5 tiêu đề gây tò mò nhưng KHỚP NỘI DUNG, mô tả 3–5 câu, 10–15 tag (bằng {lang}), "thumbnail": 3 gợi ý
+{{"text": "≤ 5 chữ bằng {lang}", "image": "mô tả hình bằng tiếng Việt"}}.
+"big_question", "answer", "secret" viết bằng tiếng Việt.
+
+CHỈ trả về MỘT khối JSON (in thẳng ra, không ghi file; trong chuỗi không dùng dấu ngoặc kép "):
+{{"title": "...", "country": "vietnam|korea|japan|england|other", "era": "...", "year": 938, "voice_suggestion": "...",
+  "big_question": "...", "answer": "...", "secret": {{"what": "...", "hint": "...", "reveal": "..."}},
+  "sections": [{{"role": "hook", "heading": "...", "mood": "cang_thang", "beats": ["...", "..."]}}, ... đủ 7 phần],
+  "youtube": {{"titles": ["..."], "description": "...", "tags": ["..."], "thumbnail": [{{"text": "...", "image": "..."}}]}}}}
+"""
+
+PART = """Bạn là biên kịch phim tài liệu lịch sử cho kênh YouTube không lộ mặt, viết lời kể (voice-over) bằng {lang}.
+Video "{title}" ({minutes} phút) đang được viết THEO TỪNG PHẦN. Câu hỏi lớn của video: {big_question}
+Bí mật giấu đến cao trào: {secret} (chỉ được HÉ LỘ trong phần battle; các phần trước chỉ gợi, không nói ra).
+
+DÀN Ý CẢ VIDEO:
+{outline}
+
+ĐOẠN CUỐI CỦA PHẦN ĐÃ VIẾT NGAY TRƯỚC (để nối mạch, KHÔNG lặp lại):
+{prev}
+
+BÂY GIỜ HÃY VIẾT: phần {no}/7 — role "{role}" — "{heading}"{sub}
+Ý chính cần kể (đúng thứ tự): {beats}
+Yêu cầu riêng của phần này: {how}
+Độ dài: khoảng {budget} {unit} (trong khoảng {bmin}–{bmax}).{ending}
+
+CÁCH VIẾT:
+- Kể như câu chuyện có nhân vật, không liệt kê kiểu sách giáo khoa. Câu ngắn, có nhịp, giàu hình ảnh để minh họa được
+  (mỗi câu đọc dưới ~10 giây); văn nói tự nhiên của người bản ngữ {lang}, không văn dịch. {lang_note}
+- Dùng nhân vật thay vì sự kiện; có thể đặt người xem vào vị trí chỉ huy. Suy đoán tâm lý thì nói rõ là suy đoán, KHÔNG bịa lời thoại.
+- Con số đi kèm hình dung chính xác; số liệu còn tranh cãi thì nói rõ. Không bịa chi tiết.
+- {names_rule} Viết năm bằng chữ số (vd 938). Không tiêu đề, gạch đầu dòng, ký hiệu hay chú thích trong lời kể.
+- Không chào hỏi, không giới thiệu kênh, không kêu gọi like / đăng ký.
+
+"sources": ghi chú nguồn (tiếng Việt) cho sự kiện, năm, tên người, số liệu quan trọng trong phần này
+({{"claim": "...", "source": "sách / sử liệu cụ thể", "note": "mức độ chắc chắn"}}). "disputed": điểm còn tranh cãi (nếu có).
+
+CHỈ trả về MỘT khối JSON (in thẳng ra, không ghi file; trong lời kể dùng ngoặc đơn hoặc « » thay cho dấu ngoặc kép "):
+{{"paragraphs": ["đoạn 1", "đoạn 2", "..."], "sources": [...], "disputed": [...]}}
+"""
+
+OUTLINE_SCHEMA = {"type": "object", "required": ["title", "sections"],
+                  "properties": {"sections": {"type": "array", "items": {"type": "object", "required": ["role", "heading", "beats"]}}}}
+PART_SCHEMA = {"type": "object", "required": ["paragraphs"], "properties": {"paragraphs": {"type": "array", "items": {"type": "string"}}}}
+PART_MAX_UNITS = 1000      # một lượt AI viết tối đa ~1000 chữ (≈ 5 phút đọc), phần dài hơn chia nhỏ
+
+
+def write_in_parts(router, info, cfg, log, lg, LI, wpm, words, bud, unit_short):
+    """Video dài: dàn ý trước, rồi viết từng phần (mỗi lượt ngắn, không quá thời gian / độ dài trả lời của AI)."""
+    import math
+    from core import lang as L
+    roles_txt = "\n".join(f"  {i + 1}. role \"{r}\" — {title} (~{bud[r]} {unit_short}, ~{bud[r] / wpm:.1f} phút): {how}"
+                          for i, (r, _, _, title, how) in enumerate(ROLES))
+    log(f"✍️  Video dài {info['minutes']:g} phút (~{words} {unit_short}): lập dàn ý trước, rồi viết từng phần...")
+
+    def check_outline(d):
+        roles = [str(x.get("role", "")).lower() for x in d.get("sections") or []]
+        E = [] if roles == ROLE_NAMES else [f"Phải có đúng 7 phần với role theo thứ tự {ROLE_NAMES}; hiện có {roles}"]
+        E += [f"Phần {x.get('role')} thiếu 'beats'" for x in d.get("sections") or [] if not x.get("beats")]
+        if not d.get("big_question"):
+            E.append("Thiếu 'big_question'")
+        return E
+    outline = router.ask("writer", OUTLINE.format(lang=LI["name"], topic=info["topic"], country=info.get("country") or "?",
+                                                  era=info.get("era") or "?", year=info.get("year") or "?", minutes=info["minutes"],
+                                                  words=words, unit=LI["unit"], roles=roles_txt, moods=", ".join(MOODS)),
+                         schema=OUTLINE_SCHEMA, validator=check_outline)
+    secret = outline.get("secret") if isinstance(outline.get("secret"), dict) else {}
+    outline_txt = "\n".join(f"{i + 1}. [{x['role']}] {x['heading']}: " + " / ".join(map(str, x.get("beats") or []))
+                             for i, x in enumerate(outline["sections"]))
+    how = {r[0]: r[4] for r in ROLES}
+    sections, sources, disputed = [], [], list(outline.get("disputed") or [])
+    prev = "(đây là phần đầu tiên của video)"
+    for i, sec in enumerate(outline["sections"]):
+        role = sec["role"]
+        beats = [str(b) for b in sec.get("beats") or []]
+        n = max(1, math.ceil(bud[role] / PART_MAX_UNITS))
+        per = bud[role] / n
+        paras = []
+        for k in range(n):
+            part_beats = beats[k * len(beats) // n:(k + 1) * len(beats) // n] or beats
+            last_sub = k == n - 1
+            ending = ""
+            if last_sub and role == "hook":
+                ending = "\nKết phần bằng CÂU HỎI LỚN của video (có dấu chấm hỏi) và một câu gợi tới bí mật."
+            elif last_sub and role == "legacy":
+                ending = "\nKết bằng một câu hỏi mở sang câu chuyện tiếp theo (có dấu chấm hỏi), không kêu gọi like / đăng ký."
+            elif last_sub:
+                ending = "\nKết phần bằng MỘT CÂU TREO dẫn sang phần sau: " + (outline["sections"][i + 1]["heading"] if i + 1 < len(outline["sections"]) else "")
+            else:
+                ending = "\nĐây chưa phải cuối phần: dừng ở chỗ tự nhiên, đoạn sau sẽ viết tiếp."
+            sub = f" (đoạn {k + 1}/{n} của phần này)" if n > 1 else ""
+            log(f"   ✍️  Phần {i + 1}/7 «{sec['heading']}»{sub} ~{int(per)} {unit_short}...")
+
+            def check_part(d, per=per, role=role, last_sub=last_sub):
+                ps = [p for p in d.get("paragraphs") or [] if isinstance(p, str) and p.strip()]
+                if not ps:
+                    return ["'paragraphs' rỗng"]
+                have = sum(L.count(p, lg) for p in ps)
+                E = []
+                if have < per * 0.6:
+                    E.append(f"Phần này mới {have} {unit_short}, cần khoảng {int(per)} — viết dài hơn bằng chi tiết có thật")
+                elif have > per * 1.45:
+                    E.append(f"Phần này dài {have} {unit_short}, chỉ cần khoảng {int(per)} — viết gọn lại, bỏ chi tiết phụ")
+                txt = " ".join(ps).lower()
+                E += [f"Bỏ câu chào hỏi / kêu gọi kiểu \"{w}\"" for w in BANNED.get(lg, []) if w in txt]
+                if last_sub and role in ("hook", "legacy") and not any(c in txt for c in ("?", "？")):
+                    E.append("Phần này phải kết bằng một câu hỏi (có dấu chấm hỏi)")
+                return E
+            d = router.ask("writer", PART.format(lang=LI["name"], title=outline.get("title") or info["topic"], minutes=info["minutes"],
+                                                 big_question=outline.get("big_question", ""), secret=secret.get("what", ""),
+                                                 outline=outline_txt, prev=prev, no=i + 1, role=role, heading=sec["heading"], sub=sub,
+                                                 beats=" / ".join(part_beats), how=how.get(role, ""), budget=int(per), bmin=int(per * 0.85), bmax=int(per * 1.1),
+                                                 unit=unit_short, ending=ending, lang_note=LANG_NOTE[lg], names_rule=NAMES_RULE[lg]),
+                           schema=PART_SCHEMA, validator=check_part)
+            new = [p.strip() for p in d["paragraphs"] if isinstance(p, str) and p.strip()]
+            paras += new
+            sources += [x for x in d.get("sources") or [] if isinstance(x, dict) and x.get("claim")]
+            disputed += [str(x) for x in d.get("disputed") or [] if x]
+            prev = "\n\n".join(paras[-2:])
+        sections.append({"role": role, "heading": sec["heading"], "mood": sec.get("mood") if sec.get("mood") in MOODS else None,
+                         "paragraphs": paras})
+    data = {k: outline.get(k) for k in ("title", "country", "era", "year", "voice_suggestion", "big_question", "answer", "secret", "youtube")}
+    data.update(sections=sections, sources=sources, disputed=list(dict.fromkeys(disputed)))
+    if data.get("country") not in ("vietnam", "korea", "japan", "england", "other"):
+        data["country"] = info.get("country") or "other"
+    for w in check_structure(data, lg):
+        log(f"   ⚠️  {w}")
+    log(f"   ✔ kịch bản {word_count(data, lg)} {unit_short}, 7 phần, {len(sources)} ghi chú nguồn")
+    return data
+
+
 def check_facts(router, info, script_md, log=print):
     log("🔎 Nhờ AI kiểm tra lại sự kiện...")
-    data = router.ask("checker", CHECK.format(topic=info["topic"], script=script_md),
-                      schema={"type": "object", "required": ["issues"], "properties": {"issues": {"type": "array"}}})
-    return data.get("issues", [])
+    schema = {"type": "object", "required": ["issues"], "properties": {"issues": {"type": "array"}}}
+    body = re.split(r"(?m)^##\s+GHI CHÚ NGUỒN", script_md)[0]
+    chunks, cur = [], ""
+    for part in re.split(r"(?m)^(?=## )", body):           # kịch bản dài: kiểm tra từng cụm phần (~6000 ký tự)
+        if cur and len(cur) + len(part) > 6000:
+            chunks.append(cur)
+            cur = ""
+        cur += part
+    if cur.strip():
+        chunks.append(cur)
+    issues = []
+    for i, ch in enumerate(chunks):
+        if len(chunks) > 1:
+            log(f"   🔎 đoạn {i + 1}/{len(chunks)}...")
+        data = router.ask("checker", CHECK.format(topic=info["topic"], script=ch), schema=schema)
+        issues += data.get("issues", [])
+    return issues
 
 
 # ------------------------------------------------------------------ script.md

@@ -12,7 +12,7 @@ DEFAULTS = {
     "claude": {"model": None, "timeout": 900},
     "agy": {"model": None, "timeout": 900, "prompt_via": "auto"},
     "narration_language": "vi",
-    "default_minutes": 10, "words_per_minute": 200,
+    "default_minutes": 10, "script_parts_from_minutes": 12, "words_per_minute": 200,
     "review_after": ["script", "plan"],
     "voice": {"engine": "omnivoice", "default": None, "default_by_country": {}, "device": "auto", "num_step": 32,
               "draft_num_step": 16, "speed": 1.0, "qc": True, "qc_max_retries": 3, "qc_max_cer": 0.25,
