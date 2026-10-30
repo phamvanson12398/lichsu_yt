@@ -48,8 +48,8 @@ render:
   # YouTube nén video tải lên 1440p / 4K tốt hơn hẳn -> người xem 1080p cũng thấy nét hơn. Đổi tạm bằng: --quality cao
   quality: chuan
   fps: 30
-  crf: null               # để trống = theo mức chất lượng (18). Số nhỏ hơn = nét hơn, file nặng hơn
-  preset: null            # để trống = medium (nén kỹ, nét). veryfast = nhanh hơn, kém nét hơn chút
+  crf: null               # để trống = theo mức chất lượng (17). Số nhỏ hơn = nét hơn, file nặng hơn
+  preset: null            # để trống = veryfast (nhanh). fast / medium = nén kỹ hơn, file nhỏ hơn chút, chậm hơn 2–3x
   tune: animation         # tối ưu cho tranh phẳng nhiều mảng màu
   sharpen: null           # làm nét nhẹ (0 = tắt, 0.2–0.6). Để trống = theo mức chất lượng
   supersample: 2.0        # vẽ ở 2x rồi thu nhỏ để nét mịn, không răng cưa

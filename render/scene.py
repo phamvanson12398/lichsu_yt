@@ -17,7 +17,7 @@ from PIL import Image, ImageDraw, ImageFilter
 from assets_code import registry
 from assets_code.registry import Canvas
 from render import palettes
-from render.common import add_array, glow_sprite, grain_frames, safe_composite, vignette
+from render.common import add_image, finish_frame, glow_image, safe_composite
 from render.motion import Camera, canvas_spec
 from render.particles import KINDS, System
 
@@ -160,8 +160,8 @@ class SceneVisual:
             self._make_shimmer(sh[0]["color"], sh[0]["y0"] * r)
         self.arrows = [dict(e, src=(e["src"][0] * r, e["src"][1] * r), dst=(e["dst"][0] * r, e["dst"][1] * r), size=e["size"] * r)
                        for e in c.effects if e.get("type") == "arrows"]
-        self.vig = vignette(OW, OH, vignette_strength)
-        self.grain = grain_frames(OW, OH, grain, int(grain_n)) if grain > 0 else None
+        self.vig_strength = vignette_strength
+        self.grain = grain
         self.fi = 0
         self._gcache = {}
 
@@ -268,6 +268,7 @@ class SceneVisual:
 
     def _rescale(self, r):
         if abs(r - 1) < 1e-3:
+            self._crop_layers()
             return
         for it in self.items:
             if it[0] == "layer":
@@ -283,6 +284,26 @@ class SceneVisual:
             s.X, s.Y = s.X * r, s.Y * r
             s.move = (s.move[0] * r, s.move[1] * r)
             s.fires = [(fx * r, fy * r, rad * r) for fx, fy, rad in s.fires]
+        self._crop_layers()
+
+    def _crop_layers(self):
+        """Cắt mỗi lớp trong suốt theo vùng thật sự có hình (núi, bờ, cỏ lau... chỉ là một dải):
+        mỗi khung chỉ phải dán / phóng phần nhỏ đó thay vì cả khung."""
+        for it in self.items:
+            if it[0] != "layer":
+                continue
+            im = it[2]
+            off = (0, 0)
+            if im.mode == "RGBA":
+                bb = im.getchannel("A").getbbox()
+                if bb and (bb[2] - bb[0]) * (bb[3] - bb[1]) < im.width * im.height * 0.9:
+                    im = im.crop(bb)
+                    off = (bb[0], bb[1])
+            it[2] = im
+            if len(it) == 4:
+                it.append(off)
+            else:
+                it[4] = off
 
     def _make_shimmer(self, col, y0):
         OW, OH = self.OW, self.OH
@@ -300,7 +321,7 @@ class SceneVisual:
                 x = rr.uniform(0, w)
                 d.line([(x, y), (x + rr.uniform(30, 140) * k * (.4 + t), y)], fill=col + (int(rr.uniform(60, 170) * (1 - .5 * t)),),
                        width=max(1, int((1 + 3 * t) * k)))
-            layers.append(np.asarray(im))
+            layers.append((im.convert("RGB"), im.getchannel("A")))
         self.shimmer = (layers, y0)
 
     # ------------------------------------------------------------------ per-frame
@@ -318,7 +339,9 @@ class SceneVisual:
     def _draw_sprite(self, frame, s, t, box):
         k = self.OW / (box[2] - box[0])
         X, Y, ang = self._sprite_pos(s, t)
-        if s.redraw:
+        if s.redraw and getattr(s, "_last", None) and t - s._last[0] < 1 / 15 - 1e-6 and s._last[1] == k:
+            img = s._last[2]                    # cờ / lửa vẽ lại 15 lần mỗi giây là đủ mượt
+        elif s.redraw:
             func, x, y, sc, params, size, dox, doy = s.redraw
             sub = Image.new("RGBA", size, (0, 0, 0, 0))
             c = self.c
@@ -331,40 +354,64 @@ class SceneVisual:
             if self.night:
                 sub = _tint(sub)
             kk = k * self.r
-            img = sub.resize((max(1, int(sub.width * kk)), max(1, int(sub.height * kk))), Image.BICUBIC)
+            img = sub.resize((max(1, int(sub.width * kk)), max(1, int(sub.height * kk))), Image.BILINEAR)
+            s._last = (t, k, img)
         else:
             ck, cimg = s._cache
-            if ck is None or abs(ck - k) / k > 0.003:
+            if ck is None or abs(ck - k) / k > 0.008:
                 cimg = s.img if abs(k - 1) < 1e-3 else s.img.resize(
-                    (max(1, int(s.img.width * k)), max(1, int(s.img.height * k))), Image.BICUBIC)
+                    (max(1, int(s.img.width * k)), max(1, int(s.img.height * k))), Image.BILINEAR)
                 s._cache = (k, cimg)
             img = cimg
             if abs(ang) > 0.05:
-                img = img.rotate(ang, resample=Image.BICUBIC)
+                img = img.rotate(ang, resample=Image.BILINEAR)
         safe_composite(frame, img, (X - box[0]) * k, (Y - box[1]) * k)
         for (fx, fy, r) in s.fires:
             self._fires_out.append(((X + fx - box[0]) * k, (Y + fy - box[1]) * k, r * k))
 
-    def _view(self, im, box):
-        """Lấy vùng box của lớp, đưa về kích thước khung xuất (cắt nguyên pixel nếu không cần co giãn)."""
+    def _paste_layer(self, frame, im, off, box):
+        """Dán phần lớp (đã cắt, nằm ở off trong canvas) rơi vào khung nhìn box, co giãn nếu camera zoom."""
         OW, OH = self.OW, self.OH
-        if abs((box[2] - box[0]) - OW) < 0.5 and abs((box[3] - box[1]) - OH) < 0.5:
+        ox, oy = off
+        w, h = im.size
+        sx = OW / (box[2] - box[0])
+        sy = OH / (box[3] - box[1])
+        mask = im if im.mode == "RGBA" else None
+        if abs(sx - 1) < 1e-3 and abs(sy - 1) < 1e-3:      # chỉ trượt: cắt nguyên pixel, không co giãn
             x0, y0 = int(round(box[0])), int(round(box[1]))
-            return im.crop((x0, y0, x0 + OW, y0 + OH))
-        return im.resize((OW, OH), Image.BICUBIC, box=box)
+            cx0, cy0 = max(0, x0 - ox), max(0, y0 - oy)
+            cx1, cy1 = min(w, x0 + OW - ox), min(h, y0 + OH - oy)
+            if cx1 <= cx0 or cy1 <= cy0:
+                return
+            part = im.crop((cx0, cy0, cx1, cy1))
+            frame.paste(part, (ox + cx0 - x0, oy + cy0 - y0), part if mask else None)
+            return
+        # zoom: tính vùng xuất (nguyên pixel) tương ứng phần lớp, phóng đúng phần đó
+        X0 = max(0, math.floor((ox - box[0]) * sx))
+        Y0 = max(0, math.floor((oy - box[1]) * sy))
+        X1 = min(OW, math.ceil((ox + w - box[0]) * sx))
+        Y1 = min(OH, math.ceil((oy + h - box[1]) * sy))
+        if X1 <= X0 or Y1 <= Y0:
+            return
+        lx0 = min(max(0.0, box[0] + X0 / sx - ox), w)
+        ly0 = min(max(0.0, box[1] + Y0 / sy - oy), h)
+        lx1 = min(max(0.0, box[0] + X1 / sx - ox), w)
+        ly1 = min(max(0.0, box[1] + Y1 / sy - oy), h)
+        if lx1 <= lx0 or ly1 <= ly0:
+            return
+        part = im.resize((X1 - X0, Y1 - Y0), Image.BILINEAR, box=(lx0, ly0, lx1, ly1))
+        frame.paste(part, (X0, Y0), part if mask else None)
 
     def compose(self, t):
         OW, OH = self.OW, self.OH
         frame = Image.new("RGB", (OW, OH))
         self._fires_out = []
-        for kind, depth, obj, drift in self.items:
+        item_off = {id(it[2]): (it[4] if len(it) > 4 else (0, 0)) for it in self.items if it[0] == "layer"}
+        for it in self.items:
+            kind, depth, obj, drift = it[:4]
             box = self.cam.box(t, depth, drift)
             if kind == "layer":
-                im = self._view(obj, box)
-                if im.mode == "RGB":
-                    frame.paste(im, (0, 0))
-                else:
-                    frame.paste(im, (0, 0), im)
+                self._paste_layer(frame, obj, item_off[id(obj)], box)
             elif kind == "sprite":
                 self._draw_sprite(frame, obj, t, box)
             elif kind == "shimmer" and self.shimmer:
@@ -373,13 +420,14 @@ class SceneVisual:
                 yo = int(max(0, yo))
                 if yo >= OH:
                     continue
-                for k_, sh in enumerate(layers):
+                for k_, (rgb, alpha) in enumerate(layers):
                     a = .5 + .5 * math.sin(t * 2.2 + k_ * math.pi)
-                    off = int((t * 25 * OW / 1920 + k_ * 300 * OW / 1920) % (sh.shape[1] - OW))
-                    part = sh[: OH - yo, off:off + OW].copy()
-                    part[..., 3] = (part[..., 3] * a).astype(np.uint8)
-                    im = Image.fromarray(part, "RGBA")
-                    frame.paste(im, (0, yo), im)
+                    off = int((t * 25 * OW / 1920 + k_ * 300 * OW / 1920) % (rgb.width - OW))
+                    box_ = (off, 0, off + OW, OH - yo)
+                    lv = int(round(a * 12))           # độ mờ lấp lánh lượng tử 13 mức -> bảng tra tính sẵn
+                    if lv == 0:
+                        continue
+                    frame.paste(rgb.crop(box_), (0, yo), alpha.crop(box_).point(_ALPHA_LUT[lv]))
         for (X, Y, rad, depth) in self.static_fires:
             b = self.cam.box(t, depth)
             k = OW / (b[2] - b[0])
@@ -419,31 +467,29 @@ class SceneVisual:
                 d.line([(x - vx / n * L, y - vy / n * L), (x, y)], fill=col, width=max(1, int(2 * self.OW / 1920)))
 
     def frame(self, t):
+        """Khung hình tại t (ảnh RGB). Phải gọi lần lượt t tăng dần (hạt được mô phỏng theo thời gian)."""
         if not self._warm:
             self._warm = True
             self.compose(0)
             for s in self.systems:
                 if s.kind in ("embers", "smoke", "sparks", "dust"):
                     s.warm(1.3)
-        frame = self.compose(t)
-        a = np.asarray(frame).astype(np.float32)
+        im = self.compose(t)
         for i, (fx, fy, r) in enumerate(self._fires_out):
             fl = .75 + .18 * math.sin(t * 11 + i * 2) + .1 * math.sin(t * 23 + i * 5) + .05 * math.sin(t * 37 + i)
-            add_array(a, self._glow_for(r), fx, fy, fl)
+            add_image(im, self._glow_for(r, fl), fx, fy)
         for s in self.systems:
             s.step(t)
-            s.apply(a, t)
-        a *= self.vig
-        if self.grain is not None:
-            a += self.grain[self.fi % len(self.grain)]
-        self.fi += 1
-        return a
+            im = s.apply(im, t)
+        return finish_frame(im, self.vig_strength, self.grain)
 
-    def _glow_for(self, r):
+    def _glow_for(self, r, fl=1.0):
         key = max(4, int(r / 6) * 6 + 6)
-        if key not in self._gcache:
-            self._gcache[key] = glow_sprite(key, self.pal["fire"], (255, 220, 120)) * 0.9
-        return self._gcache[key]
+        level = round(min(1.15, max(0.5, fl)) * 10) / 10      # 8 mức chập chờn, tính sẵn
+        return glow_image(key, tuple(self.pal["fire"]), (255, 220, 120), level)
+
+
+_ALPHA_LUT = [[int(v * i / 12) for v in range(256)] for i in range(13)]
 
 
 def _tint(im):

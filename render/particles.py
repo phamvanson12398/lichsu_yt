@@ -2,12 +2,12 @@
 dust, sparks, cherry_blossom (hoa anh đào), leaves.
 
 Mô phỏng trong toạ độ khung hình xuất ra, có seed để cùng kết quả mỗi lần dựng.
-Hàm apply(arr, t) cộng / trộn hiệu ứng vào mảng float32 (H, W, 3).
+Hàm apply(im, t) vẽ hiệu ứng lên ảnh RGB (8-bit) và trả về ảnh.
 """
 import math
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
 KINDS = ["embers", "smoke", "fire_glow", "mist", "rain", "snow", "dust", "sparks", "cherry_blossom", "leaves"]
 
@@ -134,35 +134,31 @@ class System:
             self.step(-seconds + i / self.fps)
 
     # ---------------------------------------------------------- drawing
-    def apply(self, arr, t):
+    # Mọi phép vẽ làm trên ảnh 8-bit bằng hàm C của Pillow (paste có mặt nạ, ImageChops.add) — nhanh hơn nhiều
+    # so với tính số thực trên cả khung hình. Hàm nhận ảnh RGB và trả về ảnh RGB.
+    def apply(self, im, t):
         k = self.kind
         W, H = self.W, self.H
         if k == "fire_glow":
             fl = 0.75 + 0.15 * math.sin(t * 9) + 0.08 * math.sin(t * 23) + 0.04 * self.rng.standard_normal()
-            g = np.linspace(0, 1, H, dtype=np.float32)[:, None, None] ** 2.2
-            arr += g * np.array(self.fire_col, np.float32) * 0.28 * fl * self.intensity
-            return arr
+            return ImageChops.add(im, self._fire_glow_level(fl))
         if k == "mist":
             if self._mist is None:
                 lw, lh = W // 8 + 2, H // 8 + 2
                 n = self.rng.normal(0, 1, (lh // 4 + 2, lw // 2 + 2)).astype(np.float32)
-                im = Image.fromarray(((n + 3) * 40).clip(0, 255).astype(np.uint8)).resize((lw * 2, lh), Image.BICUBIC)
-                im = im.filter(ImageFilter.GaussianBlur(6))
-                m = np.asarray(im).astype(np.float32) / 255.0
+                m = Image.fromarray(((n + 3) * 40).clip(0, 255).astype(np.uint8)).resize((lw * 2, lh), Image.BICUBIC)
+                m = np.asarray(m.filter(ImageFilter.GaussianBlur(6))).astype(np.float32) / 255.0
                 yy = np.linspace(0, 1, lh, dtype=np.float32)[:, None]
-                m = m * (0.35 + 0.65 * np.exp(-((yy - 0.62) / 0.28) ** 2))
-                self._mist = m
-            m = self._mist
+                m = m * (0.35 + 0.65 * np.exp(-((yy - 0.62) / 0.28) ** 2)) * 0.55 * self.intensity
+                self._mist = Image.fromarray((m * 255).clip(0, 255).astype(np.uint8), "L")
             lw = W // 8 + 2
-            off = int((t * 6) % (m.shape[1] - lw))
-            sl = m[:, off:off + lw]
-            a = np.asarray(Image.fromarray((sl * 255).astype(np.uint8)).resize((W, H), Image.BILINEAR)).astype(np.float32)
-            a = (a / 255.0 * 0.55 * self.intensity)[..., None]
-            arr[:] = arr * (1 - a) + self.fog_col * a
-            return arr
+            off = (t * 6) % (self._mist.width - lw - 1)
+            mask = self._mist.resize((W, H), Image.BILINEAR, box=(off, 0, off + lw, self._mist.height))
+            im.paste(tuple(int(v) for v in self.fog_col), (0, 0, W, H), mask)
+            return im
         p = self.p
         if not len(p):
-            return arr
+            return im
         if k in ("embers", "sparks", "dust"):
             hw, hh = W // 2, H // 2
             em = Image.new("RGB", (hw, hh))
@@ -180,36 +176,38 @@ class System:
                     c = (int(255 * a), int(170 * a * a), int(60 * a ** 3))
                 r = sz / 2
                 d.ellipse([x / 2 - r, y / 2 - r, x / 2 + r, y / 2 + r], fill=c)
-            glow = em.filter(ImageFilter.GaussianBlur(3))
-            half = np.asarray(em).astype(np.float32) * 1.2 + np.asarray(glow).astype(np.float32) * 1.6
             bb = em.getbbox()
             if not bb:
-                return arr
-            full = Image.fromarray(np.clip(half, 0, 255).astype(np.uint8)).resize((W, H), Image.BILINEAR)
-            arr += np.asarray(full).astype(np.float32)
-            return arr
+                return im
+            pad = 8
+            bb = (max(0, bb[0] - pad), max(0, bb[1] - pad), min(hw, bb[2] + pad), min(hh, bb[3] + pad))
+            em = em.crop(bb)
+            glow = em.filter(ImageFilter.GaussianBlur(3))
+            # ≈ em*1.2 + glow*1.6 (như bản cũ), chỉ làm trong vùng có hạt
+            add = ImageChops.add(ImageChops.add(em, glow), ImageChops.add(em.point(_LUT_02), glow.point(_LUT_06)))
+            box = (bb[0] * 2, bb[1] * 2, min(W, bb[2] * 2), min(H, bb[3] * 2))
+            add = add.resize((box[2] - box[0], box[3] - box[1]), Image.BILINEAR)
+            im.paste(ImageChops.add(im.crop(box), add), box[:2])
+            return im
         if k == "smoke":
             sm = Image.new("L", (W // 4, H // 4))
             d = ImageDraw.Draw(sm)
             for x, y, *_rest in p:
                 age, life, sz = _rest[2], _rest[3], _rest[4]
-                a = math.sin(math.pi * age / life) * 70
+                a = math.sin(math.pi * age / life) * 70 * 0.85
                 r = sz / 4
                 d.ellipse([x / 4 - r, y / 4 - r, x / 4 + r, y / 4 + r], fill=int(a))
             sm = sm.filter(ImageFilter.GaussianBlur(10)).resize((W, H), Image.BILINEAR)
-            s = np.asarray(sm).astype(np.float32)[..., None] / 255.0
-            arr[:] = arr * (1 - s * 0.85) + s * 30
-            return arr
+            im.paste((35, 32, 32), (0, 0, W, H), sm)
+            return im
         if k == "rain":
             L = Image.new("L", (W, H))
             d = ImageDraw.Draw(L)
             for x, y, vx, vy, age, life, sz, _ in p:
-                d.line([(x, y), (x - vx * 0.012, y - sz)], fill=110, width=max(1, int(1.5 * self.k)))
-            a = np.asarray(L).astype(np.float32)[..., None] / 255.0
-            arr[:] = arr * (1 - a * 0.5) + 200 * a * 0.5
-            arr *= 0.97
-            return arr
-        # snow / petals / leaves: vẽ trực tiếp
+                d.line([(x, y), (x - vx * 0.012, y - sz)], fill=55, width=max(1, int(1.5 * self.k)))
+            im.paste((200, 202, 206), (0, 0, W, H), L)
+            return im
+        # tuyết / cánh hoa / lá: vẽ trực tiếp lên lớp trong suốt rồi dán
         L = Image.new("RGBA", (W, H), (0, 0, 0, 0))
         d = ImageDraw.Draw(L)
         for x, y, vx, vy, age, life, sz, rot in p:
@@ -221,7 +219,18 @@ class System:
                 pts = [(x + c * sz, y + s_ * sz * 0.5), (x - s_ * sz * 0.45, y + c * sz * 0.45),
                        (x - c * sz, y - s_ * sz * 0.5), (x + s_ * sz * 0.45, y - c * sz * 0.45)]
                 d.polygon(pts, fill=col)
-        a = np.asarray(L).astype(np.float32)
-        al = a[..., 3:4] / 255.0
-        arr[:] = arr * (1 - al) + a[..., :3] * al
-        return arr
+        im.paste(L, (0, 0), L)
+        return im
+
+    def _fire_glow_level(self, fl):
+        """Ánh lửa hắt từ dưới lên: tính sẵn 8 mức sáng, mỗi khung chọn mức gần nhất."""
+        if not hasattr(self, "_fg_levels"):
+            g = np.linspace(0, 1, self.H, dtype=np.float32)[:, None, None] ** 2.2
+            base = g * np.array(self.fire_col, np.float32) * 0.28 * self.intensity
+            self._fg_levels = [Image.fromarray(np.broadcast_to(base * (0.6 + 0.07 * i), (self.H, self.W, 3)).clip(0, 255).astype(np.uint8))
+                               for i in range(8)]
+        return self._fg_levels[int(min(7, max(0, round((fl - 0.6) / 0.07))))]
+
+
+_LUT_02 = [min(255, int(v * 0.2)) for v in range(256)] * 3
+_LUT_06 = [min(255, int(v * 0.6)) for v in range(256)] * 3

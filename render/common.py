@@ -6,7 +6,7 @@ import unicodedata
 from functools import lru_cache
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GOLD = (244, 210, 140)
@@ -380,6 +380,41 @@ def grain_frames(w, h, amount=7.0, n=1, seed=11):
     """Hạt nhiễu. n=1: hạt tĩnh như demo (nén tốt, file nhỏ); n>1: hạt động kiểu phim (file nặng hơn nhiều)."""
     rng = np.random.default_rng(seed)
     return [rng.normal(0, amount, (h, w, 1)).astype(np.float32) for _ in range(n)]
+
+
+@lru_cache(6)
+def finish_image(w, h, vig_strength=0.55, grain=4.5, seed=11):
+    """Một ảnh hệ số tính sẵn = viền tối × hạt nhiễu (hạt nhiễu dạng nhân, giống hạt phim: vùng sáng rõ hơn vùng tối).
+    Hoàn thiện mỗi khung chỉ còn MỘT phép nhân bằng C."""
+    v = vignette(w, h, vig_strength)[..., 0]
+    if grain:
+        n = np.random.default_rng(seed).normal(0, grain / 160.0, (h, w)).astype(np.float32)
+        v = v * (0.985 + n)
+    f = Image.fromarray((v * 255).clip(0, 255).astype(np.uint8), "L")
+    return Image.merge("RGB", [f, f, f])
+
+
+def finish_frame(im, vig_strength=0.55, grain=4.5):
+    return ImageChops.multiply(im, finish_image(im.width, im.height, vig_strength, float(grain or 0)))
+
+
+@lru_cache(64)
+def glow_image(r, col, core=(255, 220, 120), level=1.0):
+    """Quầng sáng lửa dạng ảnh RGB (đã nhân độ sáng) để cộng vào khung."""
+    a = glow_sprite(r, col, core) * 0.9 * level
+    return Image.fromarray(a.clip(0, 255).astype(np.uint8))
+
+
+def add_image(im, sprite, cx, cy):
+    """Cộng (additive) ảnh sprite vào im tại tâm (cx, cy), chỉ trên vùng giao nhau."""
+    w, h = sprite.size
+    x0, y0 = int(cx - w / 2), int(cy - h / 2)
+    bx0, by0, bx1, by1 = max(0, x0), max(0, y0), min(im.width, x0 + w), min(im.height, y0 + h)
+    if bx1 <= bx0 or by1 <= by0:
+        return
+    region = im.crop((bx0, by0, bx1, by1))
+    sp = sprite.crop((bx0 - x0, by0 - y0, bx1 - x0, by1 - y0))
+    im.paste(ImageChops.add(region, sp), (bx0, by0))
 
 
 def smooth_path(pts, n=200):

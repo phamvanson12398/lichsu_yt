@@ -131,11 +131,10 @@ def preview_component(name, out_path, palette="hoang_hon_do"):
             "elements": [{"kind": name, "x": 0.22, "y": y, "scale": 0.6}, {"kind": name, "x": 0.52, "y": y, "scale": 1.0},
                          {"kind": name, "x": 0.82, "y": y, "scale": 0.8, "state": "burning"}]}
     v = SceneVisual(desc, 1280, 720, 10, 2.0, palette=palette, motion="static")
-    a = v.frame(1.0)
-    img = Image.fromarray(np.clip(a, 0, 255).astype(np.uint8))
+    img = v.frame(1.0)
     arr = np.asarray(img).astype(np.int32)
     v2 = SceneVisual(dict(desc, elements=[]), 1280, 720, 10, 2.0, palette=palette, motion="static")
-    empty = np.clip(v2.frame(1.0), 0, 255).astype(np.int32)
+    empty = np.asarray(v2.frame(1.0)).astype(np.int32)
     diff = np.abs(arr - empty).mean()
     img.save(out_path, quality=90)
     return diff > 0.5

@@ -103,21 +103,18 @@ class CardVisual:
             yy, xx = np.mgrid[0:OH, 0:OW].astype(np.float32)
             r = np.sqrt(((xx - OW / 2) / (OW / 2)) ** 2 + ((yy - OH / 2) / (OH / 2)) ** 2)[..., None]
             base = c2 + (c1 - c2) * np.clip(r / 1.3, 0, 1) + np.array([22, 16, 12], np.float32) * np.clip(1 - r, 0, 1)
-        self.base = (base * vignette(OW, OH, 0.6)).astype(np.float32)
+        base = base * vignette(OW, OH, 0.6) + np.random.default_rng(seed + 99).normal(0, 6.0, (OH, OW, 1))
+        self.base = Image.fromarray(base.clip(0, 255).astype(np.uint8))      # hạt nhiễu + viền tối nướng sẵn
         self.systems = [System(p, OW, OH, fps, seed=seed + i, fog_col=pal["fog"], fire_col=pal["fire"]) for i, p in enumerate(particles)
                         if p in ("embers", "dust", "snow", "cherry_blossom", "leaves", "mist", "fire_glow", "smoke")]
-        self.grain = grain_frames(OW, OH, 6.0)
-        self.fi = 0
         self.static = not self.systems
 
     def frame(self, t):
-        a = self.base.copy()
+        im = self.base.copy()
         for s in self.systems:
             s.step(t)
-            s.apply(a, t)
-        a += self.grain[self.fi % len(self.grain)]
-        self.fi += 1
-        return a
+            im = s.apply(im, t)
+        return im
 
 
 def make_visual(sc, plan, dur, OW, OH, fps, cfg, seed):
@@ -178,30 +175,43 @@ class SceneRenderer:
             st = not sp.get("arrows") and not sp.get("markers") and not sp.get("labels")
         return st and not self.texts and not self.subs and self.vis2 is None and self.sc.get("flash_at") is None
 
-    def frame(self, t):
-        a = self.vis.frame(t)
+    def _text_active(self, t):
+        if self.subs and any(a <= t < b for a, b, _ in self.subs.cues):
+            return True
+        return any(t >= tx.start for tx in self.texts)
+
+    def frame_image(self, t):
+        """Khung hoàn chỉnh (ảnh RGB 8-bit): hình + crossfade + chớp sáng + chữ + phụ đề + mờ qua đen."""
+        im = self.vis.frame(t)
         if self.vis2 is not None:
             w = cross_weight(t, self.switch)
-            b = self.vis2.frame(t)
+            im2 = self.vis2.frame(t)
             if w > 0:
-                a = a * (1 - w) + b * w
+                im = Image.blend(im, im2, min(1.0, w))
         if self.dim != 1.0:
-            a *= self.dim
+            im = im.point(_lut(self.dim))
         fl = flash_gain(t, self.sc)
         if fl:
-            a += (255 - a) * fl
-        im = None
-        if self.texts or self.subs:
-            im = Image.fromarray(np.clip(a, 0, 255).astype(np.uint8)).convert("RGBA")
+            im = Image.blend(im, Image.new("RGB", im.size, (255, 255, 255)), min(1.0, fl))
+        if self._text_active(t):
+            im = im.convert("RGBA")
             for tx in self.texts:
                 tx.draw(im, t)
             if self.subs:
                 self.subs.draw(im, t)
-            a = np.asarray(im.convert("RGB")).astype(np.float32)
+            im = im.convert("RGB")
         g = fade_gain(t, self.dur, self.sc, self.fade)
         if g < 1:
-            a *= g
-        return np.clip(a, 0, 255).astype(np.uint8)
+            im = im.point(_lut(g))
+        return im
+
+    def frame(self, t):
+        return np.asarray(self.frame_image(t))
+
+
+def _lut(g):
+    g = round(max(0.0, min(1.0, g)), 3)
+    return [int(v * g) for v in range(256)] * 3
 
 
 # ======================================================================== events (âm thanh)
@@ -255,9 +265,9 @@ QUALITY = {
     # tên: kích thước, CRF, preset x264. YouTube cấp bitrate cao hơn (VP9 / AV1) cho video tải lên 1440p, 4K
     # -> người xem ở 1080p cũng thấy nét hơn.
     "nhap": {"size": (960, 540), "crf": 23, "preset": "ultrafast", "sharpen": 0.0},
-    "chuan": {"size": (1920, 1080), "crf": 18, "preset": "medium", "sharpen": 0.35},
-    "cao": {"size": (2560, 1440), "crf": 18, "preset": "medium", "sharpen": 0.3},
-    "4k": {"size": (3840, 2160), "crf": 18, "preset": "medium", "sharpen": 0.25},
+    "chuan": {"size": (1920, 1080), "crf": 17, "preset": "veryfast", "sharpen": 0.35},
+    "cao": {"size": (2560, 1440), "crf": 17, "preset": "veryfast", "sharpen": 0.3},
+    "4k": {"size": (3840, 2160), "crf": 17, "preset": "veryfast", "sharpen": 0.25},
 }
 
 
@@ -302,7 +312,7 @@ def code_version():
 def scene_hash(entry, plan, OW, OH, fps, cfg, ver):
     key = {"scene": entry["scene"], "dur": entry["dur"], "cues": entry["cues"], "OW": OW, "OH": OH, "fps": fps,
            "pal": plan.get("palette"), "country": plan.get("country"), "title": plan.get("title"), "lang": plan.get("language"),
-           "cfg": {k: cfg.get(k) for k in ("supersample", "grain", "grain_animated", "burn_subtitles", "subtitle_size", "fade", "crf",
+           "render_v": 2, "cfg": {k: cfg.get(k) for k in ("supersample", "grain", "grain_animated", "burn_subtitles", "subtitle_size", "fade", "crf",
                                           "preset", "tune", "sharpen")}, "ver": ver}
     return hashlib.sha1(json.dumps(key, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()[:16]
 
@@ -316,7 +326,7 @@ def render_scene_job(job):
     tmp = out + ".tmp.mp4"
     if rnd.is_static():
         png = out + ".png"
-        Image.fromarray(rnd.frame(entry["dur"] / 2)).save(png)
+        rnd.frame_image(entry["dur"] / 2).save(png)
         f = cfg.get("fade", 0.4) / 2
         d = entry["dur"]
         vf = f"fade=in:st=0:d={f},fade=out:st={max(0, d - f)}:d={f}"
@@ -330,13 +340,18 @@ def render_scene_job(job):
         p = ffmpeg_encoder(tmp, OW, OH, fps, cfg)
         try:
             for i in range(entry["frames"]):
-                p.stdin.write(rnd.frame(i / fps).tobytes())
+                p.stdin.write(rnd.frame_image(i / fps).tobytes())
         finally:
             p.stdin.close()
         if p.wait() != 0:
             raise RuntimeError(f"FFmpeg lỗi khi dựng cảnh {entry['scene'].get('id')}")
     os.replace(tmp, out)
     return out, time.time() - t0
+
+
+def _hms(sec):
+    sec = int(sec)
+    return f"{sec // 3600} giờ {sec % 3600 // 60} phút" if sec >= 3600 else f"{sec // 60} phút {sec % 60:02d} giây"
 
 
 def resolve_quality(cfg, draft=False, quality=None):
@@ -375,16 +390,27 @@ def render_video(plan, timeline, proj_dir, cfg, draft=False, log=print, only=Non
     log(f"Dựng {len(jobs)} cảnh mới / {len(timeline)} cảnh (còn lại lấy từ cache) — {OW}x{OH}, chất lượng '{cfg['quality']}'")
     workers = max(1, int(cfg.get("workers") or max(1, (os.cpu_count() or 2) - 1)))
     t0 = time.time()
+    frames_of = {j[6]: j[0]["frames"] for j in jobs}
+    total_frames = max(1, sum(frames_of.values()))
+    done = [0]
+
+    def eta(out):
+        """Ước tính thời gian còn lại theo số khung đã dựng."""
+        done[0] += frames_of.get(out, 0)
+        el = time.time() - t0
+        left = el / max(1, done[0]) * (total_frames - done[0])
+        return f" — đã {done[0] * 100 // total_frames}%, còn khoảng {_hms(left)}" if done[0] < total_frames else ""
+
     if jobs:
         if workers == 1 or len(jobs) == 1:
             for k, j in enumerate(jobs):
-                _, dt = render_scene_job(j)
-                log(f"  [{k + 1}/{len(jobs)}] cảnh {j[0]['scene']['id']} xong ({dt:.1f}s)")
+                out, dt = render_scene_job(j)
+                log(f"  [{k + 1}/{len(jobs)}] cảnh {j[0]['scene']['id']} xong ({dt:.1f}s){eta(out)}")
         else:
             ctx = mp.get_context("spawn")
             with ctx.Pool(min(workers, len(jobs))) as pool:
                 for k, (out, dt) in enumerate(pool.imap_unordered(render_scene_job, jobs)):
-                    log(f"  [{k + 1}/{len(jobs)}] {os.path.basename(out)} xong ({dt:.1f}s)")
+                    log(f"  [{k + 1}/{len(jobs)}] {os.path.basename(out)} xong ({dt:.1f}s){eta(out)}")
     log(f"Dựng hình xong sau {time.time() - t0:.0f}s")
     # dọn file cache cũ không còn dùng
     keep = set(outs)

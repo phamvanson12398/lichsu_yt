@@ -161,7 +161,7 @@ class MapVisual:
                 d.polygon([(x + 60 * k, y + 6 * k), (x + 80 * k, y + 18 * k), (x + 60 * k, y + 30 * k)], fill=col)
                 RichFont("serif", 30 * k).draw(d, (x + 96 * k, y), N(f"{self.ui('red') if side == 'enemy' else self.ui('blue')}: {legend[side]}"), pal["ink"])
                 y += 44 * k
-        a = np.asarray(im).astype(np.float32) * vignette(OW, OH, 0.6)
+        a = np.asarray(im).astype(np.float32) * vignette(OW, OH, 0.6) + rng.normal(0, 3.0, (OH, OW, 1))   # hạt nhiễu nướng sẵn
         return Image.fromarray(a.clip(0, 255).astype(np.uint8)).convert("RGBA")
 
     # ---------------------------------------------------------------- per-frame
@@ -290,12 +290,7 @@ class MapVisual:
         return fr
 
     def frame(self, t):
-        fr = self.compose(t)
-        a = np.asarray(fr.convert("RGB")).astype(np.float32)
-        if self.grain is not None:
-            a += self.grain[self.fi % len(self.grain)] * 0.6
-        self.fi += 1
-        return a
+        return self.compose(t).convert("RGB")
 
     def events(self):
         ev = []

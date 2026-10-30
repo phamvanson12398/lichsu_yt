@@ -56,7 +56,7 @@ def test_every_component_draws():
             bg = ["sky", "mountains:2", "sea"] if comp.category == "ship" else ["sky", "hills", "plain"]
             desc = {"background": bg, "elements": [{"kind": name, "x": 0.5, "scale": 0.8}]}
         v = SceneVisual(desc, 480, 270, 10, 1.0, motion="static", supersample=1.0)
-        a = v.frame(0.2)
+        a = np.asarray(v.frame(0.2)).astype(np.float32)
         assert a.shape == (270, 480, 3) and np.isfinite(a).all(), name
 
 
@@ -126,7 +126,7 @@ def test_input_language_tag():
 def test_quality_presets():
     from render.renderer import resolve_quality
     c = resolve_quality({"crf": None, "preset": None, "sharpen": None}, quality="cao")
-    assert tuple(c["size"]) == (2560, 1440) and c["crf"] == 18
+    assert tuple(c["size"]) == (2560, 1440) and c["crf"] == 17
     assert tuple(resolve_quality({}, draft=True)["size"]) == (960, 540)
 
 
