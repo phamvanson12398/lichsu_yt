@@ -197,7 +197,7 @@ function pageNew() {
   choiceGroup($("#c-lang"), Object.entries(LANGS).map(([k, v]) => [k, v, k === "vi" ? "Mặc định" : ""]), st.lang, (v) => (st.lang = v));
   choiceGroup($("#c-q"), QUALITIES, st.quality, (v) => (st.quality = v));
   choiceGroup($("#c-review"), [["1", "Dừng để duyệt", "Xem / sửa kịch bản và kế hoạch trước"], ["0", "Chạy hết một mạch", "Không dừng"]], st.review, (v) => (st.review = v));
-  $("#topic").onkeydown = (e) => e.key === "Enter" && $("#go").click();
+  $("#topic").onkeydown = (e) => { if (e.key === "Enter" && !e.isComposing) $("#go").click(); };
   $("#go").onclick = async () => {
     const topic = $("#topic").value.trim();
     if (!topic) return toast("Nhập chủ đề trước đã", true);
