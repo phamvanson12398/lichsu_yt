@@ -22,7 +22,7 @@ agy:
 # Đổi riêng cho từng video bằng dòng chủ đề: "Trận Hastings năm 1066 (8p, en)" hoặc lệnh: --lang ja
 narration_language: vi
 default_minutes: 10       # khi dòng chủ đề không ghi (10p)
-words_per_minute: 140     # tiếng Việt 130–150 chữ / phút (en 150 từ, ko / ja 300 ký tự mỗi phút — tự chọn)
+words_per_minute: 200     # tiếng Việt ~200 âm tiết / phút (video 15 phút ≈ 3.000 âm tiết). Giọng đọc chậm hơn thì giảm số này
 review_after: [script, plan]   # dừng để duyệt sau bước nào (xoá hết = không dừng)
 
 # ---- Giọng đọc OmniVoice

@@ -81,6 +81,16 @@ Dừng duyệt mặc định sau bước 2 và 3 (`review_after` trong `config.y
 `python main.py diversify <dự án>` đổi góc nhìn các cảnh lặp nhau (nhìn qua tán lá, tướng chỉ huy cận cảnh, lau sậy,
 đổi chuyển động camera) mà không gọi AI, không đổi lời đọc; bản cũ lưu ở `plan_truoc_da_dang.json`.
 
+**Bố cục kịch bản giữ chân người xem (7 phần):** AI viết theo khung hook (mở thẳng vào khoảnh khắc quyết định,
+đặt câu hỏi lớn, gợi một "bí mật") → hai phe & cán cân lực lượng → trước trận: mưu kế & chuẩn bị → bước ngoặt giữa video →
+diễn biến – cao trào (hé lộ bí mật ở ~2/3 video) → kết cục & cái giá (trả lời câu hỏi lớn) → di sản & câu hỏi mở sang video sau.
+Mỗi phần kết bằng câu treo, tên phần là tên chương gây tò mò, không chào hỏi / kêu gọi đăng ký. Độ dài theo
+`words_per_minute` (tiếng Việt mặc định 200 âm tiết / phút: video 15 phút ≈ 3.000 âm tiết). Trong `script.md` mỗi phần có dòng
+`<!-- mood: ... | vai: hook -->` (vai: hook, sides, prep, turn, battle, outcome, legacy) — giữ dòng này khi sửa để bước lập
+kế hoạch chọn hình hợp từng phần (cảnh title đặt ngay sau hook, bản đồ cho từng giai đoạn trận, thẻ nhân vật hai vị chỉ huy...).
+Cuối `script.md` có mục "Khung giữ chân người xem" (câu hỏi lớn, bí mật, câu trả lời) để bạn kiểm tra; `youtube.txt` có thêm
+gợi ý ảnh bìa và cách đọc biểu đồ giữ chân trong YouTube Studio.
+
 **Các kiểu cảnh cho video đa dạng:** ngoài cảnh rộng và bản đồ còn có cảnh đồ họa `timeline` (dòng thời gian),
 `character` (thẻ nhân vật), `compare` (biểu đồ so sánh quân số, luôn kèm ghi chú độ chắc chắn), `tide` (sơ đồ thủy triều);
 cảnh cận / trung `commander` (tướng chỉ huy), `war_drum` (trống trận), nền `hall` + `council` (bàn kế trong điện / lều),

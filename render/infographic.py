@@ -223,7 +223,7 @@ class CharacterVisual(_Base):
             p = self.port.resize((int(self.port.width * s), int(self.port.height * s)), Image.BICUBIC)
             _paste(fr, p, self.cx, self.cy, a, center=True)
         tx = self.OW * 0.52
-        name = self.T("name", N(self.spec.get("name", "")), "serif_bold", 74)
+        name = self._name()
         b = ease_out((t - 0.7) / 0.5)
         top = self.cy - self.R * 0.55
         _paste(fr, name, tx - 60 * k * (1 - b), top, b)
@@ -242,6 +242,15 @@ class CharacterVisual(_Base):
                 _paste(fr, self.T(f"f{i}{j}", ln, "serif", 32, fill=(236, 228, 214)), tx + 24 * k * (1 - c), y, c)
                 y += 44 * k
             y += 10 * k
+
+    def _name(self):
+        """Tên tự thu nhỏ cho vừa khung (tên dài kèm tên gốc trong ngoặc)."""
+        size, room = 74, self.OW * 0.45
+        while True:
+            lay = self.T("name", N(self.spec.get("name", "")), "serif_bold", size)
+            if lay.width <= room or size <= 40:
+                return lay
+            size -= 4
 
     def events(self):
         return [(0.2, "riser", 0.5), (0.7, "whoosh", 0.7), (1.1, "shimmer", 0.6)] + \

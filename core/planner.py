@@ -33,9 +33,23 @@ thành các CẢNH và trả về JSON {{"scenes": [...]}} theo đúng định d
 
 QUY TẮC:
 - Lời đọc ("narration") của các cảnh ghép lại phải ĐÚNG NGUYÊN VĂN đoạn trên ({lang_name}), đúng thứ tự, không thêm bớt, không dịch.
-  Mỗi cảnh narration ~{u0}–{u1} {unit} (≈ 6–10 giây), cắt ở ranh giới câu.
+  Mỗi cảnh narration ~{u0}–{u1} {unit} (≈ 4–7 giây), cắt ở ranh giới câu. Hình phải đổi mỗi 3–5 giây:
+  cảnh dài hơn ~5 giây thì thêm "scene2" (cảnh thứ hai, khác góc nhìn) + "switch_at" (giây đổi) hoặc dùng motion rõ.
+- HÌNH THEO VAI TỪNG PHẦN (vai ghi trong [tên phần | vai: ...]):
+  * hook: vào thẳng khoảnh khắc gay cấn (lửa, thuyền vỡ, trống trận, tướng cận cảnh), cảnh ngắn, nhạc căng;
+    KHÔNG vẽ lộ "bí mật" của video (vd bãi cọc, sơ đồ tide, mưu kế) — chỉ gợi (mặt nước đục, bóng tối dưới nước); cuối hook
+    có câu hỏi lớn -> text_card word_by_word nhắc lại câu hỏi đó (≤ 10 chữ, duration 3). Sau phần hook là cảnh title.
+  * sides: thẻ character cho TỪNG vị chỉ huy hai phe (role ally / enemy) khi được nhắc lần đầu; compare quân số / thuyền
+    (có "note" về độ chắc chắn); map vị trí hai phe.
+  * prep: map địa hình (sông, núi, đường tiếp tế), council trong hall khi bàn mưu, timeline nếu nhắc chuỗi sự kiện,
+    foliage_frame khi nói mai phục; KHÔNG vẽ lộ phần mưu kế còn giữ bí mật.
+  * turn: một cú đổi hình mạnh (flash_at + sfx boom, đổi palette / time_of_day), text_card slide_in nhấn sự kiện bước ngoặt.
+  * battle: BẮT BUỘC map cho từng giai đoạn (mũi tên, khối quân), xen cảnh cận (commander, war_drum, thuyền cháy / vỡ),
+    tide ĐÚNG LÚC lời kể hé lộ bí mật nếu trận dựa vào thủy triều; cảnh ngắn (cận dưới số {unit}), motion nhanh (zoom_in_fast, parallax), mood cao_trao.
+  * outcome: compare thương vong (có note), text_card typewriter nêu câu trả lời cho câu hỏi lớn.
+  * legacy: cảnh rộng tĩnh lặng (dawn / mist), motion chậm; câu hỏi mở cuối -> text_card typewriter.
 - Chữ hiện trên hình ("text", "subtext", nhãn / chú thích bản đồ, "legend") viết bằng {lang_name}.
-- Kiểu cảnh: title (chỉ cảnh đầu video) | narration | text_card (thẻ chữ, không lời, có "duration") |
+- Kiểu cảnh: title (MỘT lần: ngay SAU phần hook; không có phần hook thì là cảnh đầu) | narration | text_card (thẻ chữ, không lời, có "duration") |
   map (bản đồ động, có thể kèm narration) | pause (cảnh ngừng không lời, có "duration") |
   CẢNH ĐỒ HỌA (có thể kèm narration; không có thì cần "duration"), dữ liệu đặt trong trường cùng tên:
     timeline : {{"timeline": {{"title": "...", "events": [{{"year": "905", "text": "..."}}, ...tối đa 7], "highlight": chỉ số mốc chính}}}}
@@ -153,11 +167,14 @@ def plan_with_ai(router, script, meta, cfg, log=print):
     lots = batches(script["sections"], max_words=450 if lg in ("vi", "en") else 1000, lang=lg)
     scenes = []
     for i, lot in enumerate(lots):
-        text = "\n\n".join(f"[{s['heading']}" + (f" | mood: {s['mood']}" if s.get("mood") else "") + "]\n" + "\n".join(s["paragraphs"]) for s in lot)
+        text = "\n\n".join(f"[{s['heading']}" + (f" | vai: {s['role']}" if s.get("role") else "")
+                             + (f" | mood: {s['mood']}" if s.get("mood") else "") + "]\n" + "\n".join(s["paragraphs"]) for s in lot)
         from core.diversify import family
         prev = json.dumps([{"id": s["id"], "type": s["type"], "kiểu_nền": family(s), "chính": (s.get("scene") or {}).get("elements", [{}])[:1]}
                            for s in scenes[-6:]],
-                          ensure_ascii=False) if scenes else "(đây là phần đầu: cảnh 1 phải là title)"
+                          ensure_ascii=False) if scenes else (
+            "(đây là phần đầu: phần hook kể ngay từ cảnh 1, cảnh title đặt ngay sau phần hook)"
+            if lot and lot[0].get("role") == "hook" else "(đây là phần đầu: cảnh 1 phải là title)")
         fr = FOREIGN.get(country, [])
         prompt = PROMPT.format(lang_name=LI["name"], u0=LI["scene_units"][0], u1=LI["scene_units"][1], unit=LI["unit"],
                                title=script["title"], country_name=COUNTRY_NAMES.get(country, country), era=meta.get("era", ""),
@@ -299,6 +316,7 @@ def pick_template(tmpls, text, k, last):
 
 
 MOTION_CYCLE = ["zoom_in_slow", "parallax_right", "pan_left", "zoom_out_slow", "parallax_left", "pan_right"]
+FAST_CYCLE = ["zoom_in_fast", "parallax_right", "zoom_in_slow", "parallax_left"]
 TOD_CYCLE = ["dusk", "day", "dusk", "night", "dawn"]
 
 
@@ -317,13 +335,22 @@ def plan_rule_based(script, meta, seed=1):
     limit = L.get(lg)["scene_units"][1]
     scenes = []
     first = dict(tmpls[pick_template(tmpls, title, 0, -1)][1])
-    scenes.append({"id": 1, "type": "title", "scene": dict(first, time_of_day="dusk"), "motion": "zoom_in_slow", "particles": ["mist"],
+    secs = script["sections"]
+    hook_first = bool(secs) and secs[0].get("role") == "hook"   # bố cục giữ chân: kể hook trước, tiêu đề sau
+    title_sc = {"id": 1, "type": "title", "scene": dict(first, time_of_day="dusk"), "motion": "zoom_in_slow", "particles": ["mist"],
                    "text": re.sub(r"[\s,:;–-]*(năm|NĂM|in|IN)?\s*\d+\S*$", "", title).strip(" ,:;–-").upper() or title, "subtext": L.ui(lg, "year", y=year) if year else meta.get("era", ""),
-                   "text_style": "cinematic", "duration": 5.0, "mood": "yen_binh"})
+                   "text_style": "cinematic", "duration": 5.0, "mood": "yen_binh"}
+    if not hook_first:
+        scenes.append(title_sc)
+    from core.script_writer import ROLES
+    role_mood = {r[0]: r[2] for r in ROLES}
     k = 0
     last_t = -1
     used_tide = False
-    for si, sec in enumerate(script["sections"]):
+    for si, sec in enumerate(secs):
+        if si == 1 and hook_first:
+            title_sc.pop("mood", None)
+            scenes.append(title_sc)
         if si == 1 and year:
             scenes.append({"id": len(scenes) + 1, "type": "text_card", "text": str(year), "text_style": "count_year",
                            "count_from": max(0, year - 40), "subtext": meta.get("era", ""), "particles": ["embers"], "duration": 3.5})
@@ -353,13 +380,19 @@ def plan_rule_based(script, meta, seed=1):
             t = tmpls[ti][1]
             tod = TOD_CYCLE[k % len(TOD_CYCLE)]
             parts = ["embers"] if tod == "night" else ["mist"] if tod == "dawn" else []
+            fast = sec.get("role") in ("hook", "battle")
             sc = {"id": len(scenes) + 1, "type": "narration", "scene": dict(t, time_of_day=tod),
-                  "motion": MOTION_CYCLE[k % len(MOTION_CYCLE)], "particles": parts,
+                  "motion": (FAST_CYCLE if fast else MOTION_CYCLE)[k % len(FAST_CYCLE if fast else MOTION_CYCLE)], "particles": parts,
                   "narration": ("" if lg == "ja" else " ").join(group)}
-            if gi == 0 and sec.get("mood"):
-                sc["mood"] = sec["mood"]
+            mood = sec.get("mood") or role_mood.get(sec.get("role"))
+            if gi == 0 and mood:
+                sc["mood"] = mood
             scenes.append(sc)
             k += 1
+    if title_sc not in scenes:
+        scenes.insert(0, title_sc)
+    for i, sc in enumerate(scenes):
+        sc["id"] = i + 1
     plan = {"title": title, "country": country, "era": meta.get("era", ""), "year": year, "palette": palette,
             "language": lg, "voice": meta.get("voice_name"), "scenes": scenes}
     return plan

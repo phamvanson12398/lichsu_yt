@@ -171,6 +171,30 @@ def test_diversify():
     assert [s["narration"] for s in plan["scenes"]] == ["a"] * 9
 
 
+
+def test_retention_structure():
+    from core import script_writer as S
+    from core.planner import plan_rule_based
+    from core.plan_schema import validate
+    b = S.role_budgets(15, S.target_words(15))
+    assert list(b) == S.ROLE_NAMES and 150 <= b["hook"] <= 200 and b["battle"] == max(b.values())
+    secs = [{"role": r, "heading": f"Phần {r}", "mood": None,
+             "paragraphs": [f"Câu kể thứ nhất của phần {r}. Liệu ai sẽ thắng?"]} for r in S.ROLE_NAMES]
+    data = {"title": "Trận Bạch Đằng năm 938", "country": "vietnam", "era": "thế kỷ 10", "year": 938, "sections": secs,
+            "big_question": "Vì sao?", "secret": {"what": "bãi cọc"}, "sources": [], "youtube": {}}
+    assert S.check_structure(data) == []
+    bad = dict(data, sections=[dict(secs[0], paragraphs=["Xin chào các bạn, hôm nay chúng ta kể chuyện."])] + secs[1:])
+    assert len(S.check_structure(bad)) >= 2
+    md = S.to_markdown(data, {"minutes": 15})
+    parsed = S.parse_markdown(md)
+    assert [x["role"] for x in parsed["sections"]] == S.ROLE_NAMES
+    plan = plan_rule_based(parsed, {"country": "vietnam", "year": 938})
+    types = [x["type"] for x in plan["scenes"]]
+    assert types[0] == "narration" and types[1] == "title", types
+    assert [x["id"] for x in plan["scenes"]] == list(range(1, len(types) + 1))
+    assert not validate(plan)[0]
+
+
 if __name__ == "__main__":
     n = 0
     for k, fn in list(globals().items()):

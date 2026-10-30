@@ -21,7 +21,8 @@ def write_srt(timeline, path):
 def chapters(timeline, script=None, lang="vi"):
     """Mốc chương YouTube: đầu mỗi phần kịch bản (dựa vào cảnh có lời trùng đoạn đầu của phần)."""
     from core import lang as L
-    out = [(0.0, L.ui(lang, "intro"))]
+    secs = (script or {}).get("sections") or []
+    out = [(0.0, secs[0]["heading"] if secs and secs[0].get("role") == "hook" else L.ui(lang, "intro"))]
     if not script:
         return out
     starts = []
@@ -65,7 +66,18 @@ def write_youtube(path, plan, timeline, script_data=None, script_parsed=None, so
           "=== NHẮC VIỆC TRƯỚC KHI ĐĂNG (phần này không dán lên YouTube) ===",
           "- Xem lại toàn bộ video, nghe các câu được đánh dấu 'nên nghe lại' (nếu có).",
           "- Kiểm tra lại năm, tên người, số liệu theo phần GHI CHÚ NGUỒN trong script.md.",
-          "- Nếu kênh bật kiếm tiền: lưu ý giấy phép CC-BY-NC của OmniVoice."]
+          "- Nếu kênh bật kiếm tiền: lưu ý giấy phép CC-BY-NC của OmniVoice.",
+          "- Tiêu đề và ảnh bìa phải KHỚP nội dung: lời hứa của tiêu đề phải được trả lời trong video.",
+          "- Sau khi đăng: xem biểu đồ giữ chân trong YouTube Studio — tụt ở 30 giây đầu = hook / tiêu đề chưa ổn;",
+          "  tụt giữa video = đoạn đó dồn thông tin hoặc chậm; điểm nhô lên = đoạn hấp dẫn, làm thêm kiểu đó."]
+    thumbs = [t for t in (yt.get("thumbnail") or []) if isinstance(t, dict)]
+    if thumbs:
+        L += ["", "Gợi ý ảnh bìa (thumbnail):"] + [f"- Chữ: \"{t.get('text', '')}\" — Hình: {t.get('image', '')}" for t in thumbs]
+    sd = script_data or {}
+    if sd.get("big_question"):
+        L += ["", f"Câu hỏi lớn của video: {sd['big_question']}"]
+        if sd.get("answer"):
+            L.append(f"Câu trả lời: {sd['answer']}")
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(L) + "\n")
     return path
