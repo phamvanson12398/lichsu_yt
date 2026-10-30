@@ -1,0 +1,67 @@
+# ==================== CẤU HÌNH TOOL VIDEO LỊCH SỬ ====================
+# Sửa bằng Notepad. Dòng bắt đầu bằng # là ghi chú.
+
+# ---- AI dùng cho từng việc: claude (Claude Code CLI) hoặc agy (Antigravity CLI). Không cần API key.
+writer: agy          # ai viết kịch bản
+planner: claude      # ai lập plan.json
+checker: claude      # ai kiểm tra lại sự kiện
+check_facts: true    # có chạy bước kiểm tra sự kiện không (tốn thêm 1 lần gọi)
+fallback: true       # một bên lỗi / hết lượt thì tự chuyển sang bên kia
+
+claude:
+  model: null        # để trống = model mặc định của gói; vd: sonnet, opus
+  timeout: 900       # giây
+agy:
+  model: null
+  timeout: 900
+  prompt_via: stdin  # nếu agy không nhận prompt từ stdin, đổi thành: arg
+  use_json_schema: true
+
+# ---- Nội dung
+narration_language: tiếng Việt
+default_minutes: 10       # khi dòng chủ đề không ghi (10p)
+words_per_minute: 140     # 130–150 chữ / phút
+review_after: [script, plan]   # dừng để duyệt sau bước nào (xoá hết = không dừng)
+
+# ---- Giọng đọc OmniVoice
+voice:
+  default: null             # tên giọng mặc định (hoặc dùng: python main.py voice default <tên>)
+  default_by_country: {}    # vd: {japan: giong_nhat}
+  device: auto              # auto | cuda:0 | cpu | mps
+  num_step: 32              # chất lượng (chế độ nháp dùng draft_num_step)
+  draft_num_step: 16
+  speed: 1.0
+  qc: true                  # nhận dạng lại câu vừa tạo để kiểm tra đọc thiếu / lặp
+  qc_max_retries: 3
+  qc_max_cer: 0.25          # sai lệch tối đa chấp nhận
+  model: k2-fsa/OmniVoice
+  asr_model: openai/whisper-small
+
+# Bật nếu kênh YouTube có kiếm tiền -> tool sẽ nhắc giấy phép CC-BY-NC của OmniVoice
+kenh_kiem_tien: false
+
+# ---- Dựng hình
+render:
+  size: [1920, 1080]
+  fps: 30
+  crf: 19                 # 18–20: càng nhỏ càng nét, file càng nặng
+  preset: veryfast
+  supersample: 2.0        # vẽ ở 2x rồi thu nhỏ để nét mịn
+  grain: 7.0              # hạt nhiễu (tĩnh như demo)
+  grain_animated: false   # true = hạt nhiễu động kiểu phim (file nặng gấp ~4 lần)
+  fade: 0.4               # mờ qua đen giữa các cảnh (giây)
+  burn_subtitles: true    # in phụ đề lên hình
+  subtitle_size: 46
+  workers: 0              # số cảnh dựng song song (0 = tự chọn theo số nhân CPU)
+
+# ---- Âm thanh
+audio:
+  loudness: -16           # LUFS
+  music: auto             # auto (nhạc tự tạo) | off | file
+  music_file: null        # nhạc có giấy phép hợp lệ trong assets/ (khi music: file); ghi nguồn trong assets/library.json
+  levels: {}              # chỉnh mức: {music: 0.32, music_duck: 0.11, sfx: 0.55, bed: 0.35}
+
+# ---- Font (để trống = tự tìm: fonts/ -> Windows -> hệ thống)
+fonts: {}
+#  serif_bold: C:/Windows/Fonts/timesbd.ttf
+#  cjk: C:/Windows/Fonts/malgunbd.ttf

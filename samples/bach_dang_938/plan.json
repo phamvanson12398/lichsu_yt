@@ -1,0 +1,222 @@
+{
+  "title": "Trận Bạch Đằng năm 938",
+  "country": "vietnam",
+  "era": "cuối thời Bắc thuộc, thế kỷ 10",
+  "year": 938,
+  "palette": "hoang_hon_do",
+  "voice": null,
+  "scenes": [
+    {
+      "id": 1,
+      "type": "title",
+      "scene": {
+        "time_of_day": "dusk",
+        "weather": "clear",
+        "background": ["sky", "mountains:3", "river"],
+        "elements": [
+          {
+            "kind": "stakes_field",
+            "x": 0.22,
+            "y": 0.66,
+            "width": 0.4,
+            "tide": "high",
+            "density": "high"
+          },
+          {
+            "kind": "boat_vn",
+            "x": 0.74,
+            "y": 0.64,
+            "scale": 0.45,
+            "count": 2,
+            "spacing": 0.16
+          }
+        ]
+      },
+      "motion": "zoom_in_slow",
+      "particles": ["mist"],
+      "text": "TRẬN BẠCH ĐẰNG",
+      "subtext": "Năm 938",
+      "text_style": "cinematic",
+      "mood": "yen_binh",
+      "duration": 5.0
+    },
+    {
+      "id": 2,
+      "type": "narration",
+      "scene": {
+        "time_of_day": "dusk",
+        "background": [
+          "sky",
+          "clouds",
+          "mountains:2",
+          "river",
+          "bank_near:0.8"
+        ],
+        "elements": [
+          {
+            "kind": "stakes_field",
+            "x": 0.5,
+            "y": 0.7,
+            "width": 1.1,
+            "tide": "low",
+            "rows": 2
+          },
+          {
+            "kind": "basket_boat",
+            "x": 0.3,
+            "y": 0.78,
+            "count": 3,
+            "spacing": 0.09,
+            "scale": 0.9
+          },
+          {
+            "kind": "soldiers_vn",
+            "x": 0.72,
+            "y": 0.84,
+            "width": 0.4,
+            "rows": 3,
+            "scale": 0.9,
+            "layer": "front"
+          },
+          {
+            "kind": "flag_vn",
+            "x": 0.93,
+            "y": 0.84,
+            "scale": 0.7,
+            "layer": "front"
+          }
+        ]
+      },
+      "motion": "parallax_right",
+      "narration": "Năm 938, Ngô Quyền cho quân đẽo cọc lớn, đầu nhọn bịt sắt, đem cắm ngầm xuống lòng sông Bạch Đằng.",
+      "sfx_at": [
+        {
+          "t": 1.0,
+          "tag": "tieng_tron"
+        }
+      ],
+      "mood": "cang_thang"
+    },
+    {
+      "id": 3,
+      "type": "text_card",
+      "text": "938",
+      "subtext": "Năm Ngô Quyền đánh tan quân Nam Hán",
+      "text_style": "count_year",
+      "count_from": 900,
+      "particles": ["embers"],
+      "duration": 3.6
+    },
+    {
+      "id": 4,
+      "type": "map",
+      "map": {
+        "title": "TRẬN BẠCH ĐẰNG NĂM 938",
+        "features": ["river", "coast_right", "islands", "mountains"],
+        "labels": [
+          {
+            "text": "Sông Bạch Đằng",
+            "at": [0.16, 0.33],
+            "start": 0.4,
+            "style": "water"
+          },
+          {
+            "text": "Cửa biển",
+            "at": [0.82, 0.92],
+            "start": 0.8,
+            "style": "water"
+          }
+        ],
+        "arrows": [
+          {
+            "side": "enemy",
+            "path": [[0.95, 0.74], [0.76, 0.66], [0.6, 0.53], [0.47, 0.43]],
+            "start": 1.8,
+            "dur": 2.4,
+            "label": "Thuyền quân Nam Hán",
+            "label_at": [0.68, 0.76]
+          },
+          {
+            "side": "ally",
+            "path": [[0.55, 0.22], [0.5, 0.33], [0.477, 0.4]],
+            "start": 4.6,
+            "dur": 1.3,
+            "label": "Quân Ngô Quyền",
+            "label_at": [0.56, 0.17]
+          },
+          {
+            "side": "ally",
+            "path": [[0.4, 0.72], [0.42, 0.6], [0.455, 0.49]],
+            "start": 4.9,
+            "dur": 1.3
+          }
+        ],
+        "markers": [
+          {
+            "kind": "stakes",
+            "at": [0.47, 0.44],
+            "start": 0.6,
+            "label": ""
+          },
+          {
+            "kind": "clash_x",
+            "at": [0.47, 0.44],
+            "start": 6.9
+          }
+        ],
+        "legend": {
+          "enemy": "Quân Nam Hán (tấn công)",
+          "ally": "Quân Ngô Quyền"
+        }
+      },
+      "duration": 9.0
+    },
+    {
+      "id": 5,
+      "type": "narration",
+      "scene": {
+        "time_of_day": "night",
+        "background": ["sky", "mountains:2", "river", "reeds:0.2"],
+        "elements": [
+          {
+            "kind": "junk_ship",
+            "x": 0.22,
+            "y": 0.66,
+            "scale": 0.8,
+            "state": "burning",
+            "tilt": 12
+          },
+          {
+            "kind": "junk_ship",
+            "x": 0.6,
+            "y": 0.68,
+            "scale": 0.95,
+            "state": "burning",
+            "tilt": -9
+          },
+          {
+            "kind": "junk_ship",
+            "x": 0.9,
+            "y": 0.65,
+            "scale": 0.68,
+            "state": "broken"
+          },
+          {
+            "kind": "stakes_field",
+            "x": 0.5,
+            "y": 0.76,
+            "width": 1.2,
+            "tide": "low",
+            "rows": 1
+          }
+        ]
+      },
+      "palette": "dem_lua",
+      "motion": "parallax_left",
+      "particles": ["embers", "smoke"],
+      "narration": "Triều rút, thuyền giặc mắc cọc, vỡ tan. Chiến thắng ấy mở ra thời kỳ độc lập lâu dài cho dân tộc.",
+      "flash_at": 0.5,
+      "mood": "cao_trao"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+# Bắt buộc
+Pillow>=10.0
+numpy>=1.24
+PyYAML>=6.0
+# Khuyên dùng (đọc/ghi âm thanh nhanh hơn, đo độ lớn âm)
+soundfile>=0.12
+pyloudnorm>=0.1
+# Giọng đọc (cài riêng theo HUONG_DAN_CAI_DAT.md mục 5):
+#   pip install torch torchaudio   (bản CUDA nếu có card NVIDIA)
+#   pip install "omnivoice[tn]"

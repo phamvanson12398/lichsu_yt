@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+projects/*
+!projects/.gitkeep
+voices/*
+!voices/.gitkeep
+assets_code/custom/*_preview.jpg
+*.tmp.mp4
+.venv/
