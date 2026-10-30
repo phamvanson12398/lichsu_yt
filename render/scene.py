@@ -201,7 +201,7 @@ class SceneVisual:
                 anim = "move"
             if anim is None:
                 c.use(d)
-                comp.func(c, x, y, sc, 0.0, **params)
+                _safe_draw(comp, c, x, y, sc, 0.0, params)
                 continue
             mv = (float(move[0]) * c.vw, float(move[1]) * c.vh) if move else (0.0, 0.0)
             nf = len(c.fires)
@@ -213,16 +213,18 @@ class SceneVisual:
                 oy = c.py(y) - bh * 0.9
                 sub = Image.new("RGBA", (int(bw), int(bh)), (0, 0, 0, 0))
                 c.set_target(sub, d, ox, oy)
-                comp.func(c, x, y, sc, 0.0, **params)
+                ok = _safe_draw(comp, c, x, y, sc, 0.0, params)
                 fires = [(fx - ox, fy - oy, r) for fx, fy, r, _ in c.fires[nf:]]
                 del c.fires[nf:]
                 c.ox = c.oy = 0
+                if not ok:
+                    continue
                 self.sprites.append(Sprite(sub, ox, oy, d, "redraw", phase=phase, move=mv, fires=fires,
                                            redraw=(comp.func, x, y, sc, params, sub.size, ox, oy)))
                 continue
             tmp = Image.new("RGBA", (c.W, c.H), (0, 0, 0, 0))
             c.set_target(tmp, d)
-            comp.func(c, x, y, sc, 0.0, **params)
+            _safe_draw(comp, c, x, y, sc, 0.0, params)
             bb = tmp.getbbox()
             if not bb:
                 continue
@@ -347,7 +349,10 @@ class SceneVisual:
             c = self.c
             nf, ne = len(c.fires), len(c.effects)
             c.set_target(sub, s.depth, dox, doy)
-            func(c, x, y, sc, t + s.phase, **params)
+            try:
+                func(c, x, y, sc, t + s.phase, **params)
+            except Exception:
+                pass                       # lỗi đã báo lúc dựng nền; khung này để trống phần đó
             del c.fires[nf:]
             del c.effects[ne:]
             c.ox = c.oy = 0
@@ -487,6 +492,17 @@ class SceneVisual:
         key = max(4, int(r / 6) * 6 + 6)
         level = round(min(1.15, max(0.5, fl)) * 10) / 10      # 8 mức chập chờn, tính sẵn
         return glow_image(key, tuple(self.pal["fire"]), (255, 220, 120), level)
+
+
+def _safe_draw(comp, c, x, y, sc, t, params):
+    """Vẽ một thành phần; nếu lỗi (vd tham số AI ghi sai trong plan.json) thì bỏ qua RIÊNG thành phần đó
+    và báo trong nhật ký, không làm hỏng cả cảnh / cả video."""
+    try:
+        comp.func(c, x, y, sc, t, **params)
+        return True
+    except Exception as e:
+        print(f"   ⚠️  bỏ qua thành phần '{comp.name}' (tham số {params}): {type(e).__name__}: {e}", flush=True)
+        return False
 
 
 _ALPHA_LUT = [[int(v * i / 12) for v in range(256)] for i in range(13)]

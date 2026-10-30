@@ -175,9 +175,18 @@ def draw_tents(c, x, y, scale, t, n=5, width=0.35, **p):
 
 
 def crowd(c, x, y, scale, t, width=0.4, rows=3, density="medium", head="round", weapon="spear", shield=None,
-          facing=1, banners=0, accent=None, banner_col=None, mix_weapons=None, color=None):
+          facing=1, banners=0, accent=None, banner_col=None, mix_weapons=None, color=None, side="ally"):
     """Đám đông bóng người, xếp nhiều hàng (hàng sau nhỏ hơn và mờ hơn)."""
     d = c.d
+    # màu từ plan.json có thể là danh sách [r, g, b] hoặc bị bỏ trống -> chuẩn hoá về tuple, mặc định theo phe
+    accent = tuple(int(v) for v in accent[:3]) if accent else None
+    banner_col = tuple(int(v) for v in banner_col[:3]) if banner_col else \
+        tuple(c.pal["flag_enemy" if side == "enemy" else "flag_ally"][:3])
+    color = tuple(int(v) for v in color[:3]) if color else None
+    try:
+        facing = float(facing)
+    except (TypeError, ValueError):
+        facing = 1
     rr = random.Random(int(x * 1000 + y * 100 + rows))
     dens = {"low": 0.55, "medium": 1.0, "high": 1.6}.get(str(density), 1.0)
     base_h = 70 * c.u * scale
@@ -210,7 +219,8 @@ def crowd(c, x, y, scale, t, width=0.4, rows=3, density="medium", head="round", 
                    "facing": "1 (nhìn phải) / -1", "banners": "tỉ lệ người cắm cờ lưng 0-1"}, spacing=0.4)
 def draw_army(c, x, y, scale, t, **p):
     crowd(c, x, y, scale, t, **{k: v for k, v in p.items() if k in (
-        "width", "rows", "density", "head", "weapon", "shield", "facing", "banners", "accent", "banner_col", "mix_weapons", "color")})
+        "width", "rows", "density", "head", "weapon", "shield", "facing", "banners", "accent", "banner_col", "mix_weapons", "color",
+        "side")})
 
 
 @component("cavalry", category="people", desc="Kỵ binh: hàng ngựa có người cưỡi (bóng).",
