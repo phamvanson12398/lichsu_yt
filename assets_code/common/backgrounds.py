@@ -240,7 +240,7 @@ def _ground(c, field=False, snow=False):
         vx = c.px(0.5)
         for k in range(-24, 25):
             xb = vx + k * 150 * c.u
-            d.line([(vx + k * 6 * c.u, hz), (xb, c.H)], fill=lerp(top, bot, 0.25) + (45,), width=max(1, int(2 * c.u)))
+            d.line([(vx + k * 6 * c.u, hz), (xb, c.H)], fill=lerp(top, bot, 0.25) + (22,), width=max(1, int(2 * c.u)))
     for _ in range(int(500 * c.W * c.H / (3840 * 2160) + 80)):
         yy = rr.uniform(hz + 3 * c.u, c.H)
         tt = (yy - hz) / max(1, H)
