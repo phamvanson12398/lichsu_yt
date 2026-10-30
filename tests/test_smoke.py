@@ -196,6 +196,14 @@ def test_retention_structure():
     assert not validate(plan)[0]
 
 
+
+def test_json_repair():
+    from core.llm.base import extract_json
+    assert extract_json('{"t": "Trận "Bạch Đằng" năm 938", "a": [1, 2,],}') == {"t": 'Trận "Bạch Đằng" năm 938', "a": [1, 2]}
+    assert extract_json('Kết quả:\n```json\n{"h": "a\nb", "p": ["x"]}\n```') == {"h": "a\nb", "p": ["x"]}
+    assert extract_json('{\u201ct\u201d: \u201cBạch Đằng\u201d}') == {"t": "Bạch Đằng"}
+
+
 if __name__ == "__main__":
     n = 0
     for k, fn in list(globals().items()):

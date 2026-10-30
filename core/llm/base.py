@@ -39,8 +39,48 @@ def which(cmd):
     return p
 
 
+def repair_json(s):
+    """Sửa các lỗi JSON hay gặp ở câu trả lời của AI: ngoặc kép kiểu “ ”, ngoặc kép lọt giữa chuỗi chưa thoát (\\"),
+    xuống dòng trong chuỗi, dấu phẩy thừa trước } / ]."""
+    s = s.replace("\ufeff", "")
+    s = re.sub(r'([{\[,:]\s*)[\u201c\u201d]', r'\1"', s)          # ngoặc kép kiểu “ ” ở vị trí cú pháp JSON
+    s = re.sub(r'[\u201c\u201d](\s*[:,}\]])', r'"\1', s)
+    out, i, n, in_str = [], 0, len(s), False
+    while i < n:
+        ch = s[i]
+        if not in_str:
+            if ch == '"':
+                in_str = True
+            out.append(ch)
+        else:
+            if ch == "\\" and i + 1 < n:
+                out.append(ch + s[i + 1])
+                i += 2
+                continue
+            if ch == '"':
+                j = i + 1
+                while j < n and s[j] in " \t\r\n":
+                    j += 1
+                if j >= n or s[j] in ",}]:":
+                    in_str = False                           # ngoặc kép đóng chuỗi thật
+                    out.append(ch)
+                else:
+                    out.append('\\"')                      # ngoặc kép nằm giữa câu -> thoát
+            elif ch == "\n":
+                out.append("\\n")
+            elif ch == "\r":
+                pass
+            elif ch == "\t":
+                out.append("\\t")
+            else:
+                out.append(ch)
+        i += 1
+    r = "".join(out)
+    return re.sub(r",\s*([}\]])", r"\1", r)
+
+
 def extract_json(text):
-    """Lấy khối JSON đầu tiên trong câu trả lời (```json ... ``` hoặc {...} / [...])."""
+    """Lấy khối JSON đầu tiên trong câu trả lời (```json ... ``` hoặc {...} / [...]); hỏng nhẹ thì tự sửa."""
     if text is None:
         raise ValueError("rỗng")
     if isinstance(text, (dict, list)):
@@ -48,18 +88,30 @@ def extract_json(text):
     m = re.search(r"```(?:json)?\s*(.*?)```", text, re.S)
     cands = [m.group(1)] if m else []
     s = text.strip()
-    for open_, close in (("{", "}"), ("[", "]")):
+    pairs = [("{", "}"), ("[", "]")]
+    if -1 < s.find("[") < s.find("{") or s.find("{") == -1:
+        pairs.reverse()                                      # khối ngoài cùng là mảng
+    for open_, close in pairs:
         i = s.find(open_)
         j = s.rfind(close)
         if i != -1 and j > i:
             cands.append(s[i:j + 1])
+    if not cands:
+        raise ValueError("không thấy khối JSON nào ({...}) trong câu trả lời — AI trả lời bằng chữ thường. "
+                         "Đầu câu trả lời: " + s[:200].replace("\n", " "))
     last = None
     for c in cands:
-        try:
-            return json.loads(c)
-        except Exception as e:      # thử bản tiếp theo
-            last = e
-    raise ValueError(f"không đọc được JSON: {last}")
+        for fix in (lambda c: c, repair_json):
+            try:
+                return json.loads(fix(c), strict=False)
+            except Exception as e:      # thử bản tiếp theo
+                last = e
+    msg = str(last)
+    pos = getattr(last, "pos", None)
+    if pos is not None and cands:
+        c = cands[-1]
+        msg += f" — đoạn hỏng: …{c[max(0, pos - 80):pos + 40]}…"
+    raise ValueError(f"không đọc được JSON: {msg}")
 
 
 def check_schema(data, schema, path="$"):
@@ -145,6 +197,7 @@ class CLIBackend:
             self._log(prompt, "", "timeout", time.time() - t0, False)
             raise LLMError(f"{self.label} trả lời quá lâu (quá {timeout} giây). Thử lại hoặc tăng 'timeout' trong config.yaml.", "timeout")
         finally:
+            written = _written_files(cwd) if tmp else {}
             if tmp:
                 shutil.rmtree(tmp, ignore_errors=True)
         dt = time.time() - t0
@@ -164,8 +217,29 @@ class CLIBackend:
             if QUOTA_PAT.search(str(e)):
                 raise LLMError(f"{self.label}: đã hết lượt dùng của gói đăng ký.", "quota")
             raise
+        if isinstance(text, str) and "{" not in text and written:
+            # AI dạng agent có khi ghi kết quả ra file (vd output.json) rồi chỉ trả lời "đã tạo file" -> lấy nội dung file
+            best = max(written.items(), key=lambda kv: (kv[1].lstrip().startswith(("{", "[", "```")), len(kv[1])))
+            text = best[1]
         self._log(prompt, text if isinstance(text, str) else json.dumps(text, ensure_ascii=False, indent=1), err, dt, True)
         return text
+
+
+def _written_files(d):
+    """Các file AI tự ghi trong thư mục tạm (trừ prompt.md) — {tên: nội dung}."""
+    out = {}
+    for root, _, files in os.walk(d):
+        for f in files:
+            if f == "prompt.md" or not f.lower().endswith((".json", ".md", ".txt")):
+                continue
+            p = os.path.join(root, f)
+            try:
+                if os.path.getsize(p) < 4_000_000:
+                    with open(p, encoding="utf-8", errors="replace") as fh:
+                        out[os.path.relpath(p, d)] = fh.read()
+            except OSError:
+                pass
+    return out
 
 
 class Router:
@@ -209,7 +283,8 @@ class Router:
                     if not errs:
                         return data
                     self.log(f"   ⚠️  JSON chưa đúng ({len(errs)} lỗi), gửi lại cho AI sửa")
-                    p = (prompt + "\n\n---\nCâu trả lời trước của bạn có lỗi sau, hãy trả lại TOÀN BỘ JSON đã sửa (chỉ JSON):\n- "
+                    p = (prompt + "\n\n---\nCâu trả lời trước của bạn có lỗi sau, hãy trả lại TOÀN BỘ JSON đã sửa (chỉ JSON, in thẳng ra câu trả lời, "
+                         "KHÔNG ghi ra file; trong chuỗi, dấu ngoặc kép phải viết \\\" hoặc dùng ngoặc đơn ' thay thế):\n- "
                          + "\n- ".join(errs[:25]) + "\n\nCâu trả lời trước:\n" + (out if isinstance(out, str) else json.dumps(out, ensure_ascii=False))[:20000])
                 raise LLMError(f"{be.label} trả JSON sai sau {retries} lần sửa: {errs[:5]}", "bad_output")
             except LLMError as e:
