@@ -166,6 +166,7 @@ def step_plan(proj, cfg, router, log=print, offline=False):
         except LLMError as e:
             log(f"⚠️  AI không lập được plan ({e}). Dùng cách lập plan tự động theo mẫu.")
             plan = planner.plan_rule_based(parsed, meta)
+    plan = diversify_plan(plan, cfg, log)
     script_text = " ".join(p for s in parsed["sections"] for p in s["paragraphs"])
     plan_text = " ".join(s.get("narration", "") for s in plan["scenes"])
     cov = planner.coverage(plan_text, script_text)
@@ -176,6 +177,34 @@ def step_plan(proj, cfg, router, log=print, offline=False):
     log(plan_schema.format_report(E, W))
     log(f"   ✔ {len(plan['scenes'])} cảnh -> {proj.p('plan.json')}")
     proj.mark("plan")
+
+
+def diversify_plan(plan, cfg, log=print):
+    """Tự đa dạng góc nhìn (không đổi lời đọc). Tắt bằng  plan_diversify: false  trong config.yaml."""
+    if not cfg.get("plan_diversify", True):
+        return plan
+    from core.diversify import diversify
+    plan, notes = diversify(plan)
+    if notes:
+        log(f"🎨 Đa dạng hóa góc nhìn: {len(notes)} chỉnh sửa")
+        for n in notes[:12]:
+            log(f"   - {n}")
+        if len(notes) > 12:
+            log(f"   ... và {len(notes) - 12} chỉnh sửa khác")
+    return plan
+
+
+def step_diversify(proj, cfg, log=print):
+    """Lệnh riêng cho dự án đã có plan.json (không cần AI). Lưu bản cũ thành plan_truoc_da_dang.json."""
+    plan = proj.load("plan.json")
+    if plan is None:
+        raise RuntimeError(f"Chưa có {proj.p('plan.json')}")
+    proj.save("plan_truoc_da_dang.json", plan)
+    plan = diversify_plan(plan, dict(cfg, plan_diversify=True), log)
+    proj.save("plan.json", plan)
+    E, W = plan_schema.validate(plan)
+    log(plan_schema.format_report(E, W))
+    log(f"   ✔ Đã lưu {proj.p('plan.json')} (bản cũ: plan_truoc_da_dang.json). Dựng lại video để xem.")
 
 
 def load_plan(proj, log=print, strict=True):

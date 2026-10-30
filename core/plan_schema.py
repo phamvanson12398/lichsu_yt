@@ -13,7 +13,7 @@ from render.particles import KINDS
 from render.scene import parse_token
 from render.text_fx import STYLES
 
-SCENE_TYPES = ["title", "narration", "text_card", "map", "pause"]
+SCENE_TYPES = ["title", "narration", "text_card", "map", "pause", "timeline", "character", "compare", "tide"]
 COUNTRIES = ["vietnam", "korea", "japan", "england", "china", "common"]
 TIMES = ["dawn", "day", "dusk", "night"]
 WEATHERS = ["clear", "cloudy", "overcast", "rain", "storm", "snow", "fog"]
@@ -55,7 +55,6 @@ def validate(plan, year=None):
         E.append("plan.json không có cảnh nào")
     ids = set()
     pals_used = set([pal] if pal else [])
-    run_type, run_len = None, 0
     for i, sc in enumerate(scenes):
         where = f"Cảnh {sc.get('id', i + 1)}"
         sid = sc.get("id")
@@ -110,13 +109,9 @@ def validate(plan, year=None):
                 W.append(f"{where}: không có mô tả 'scene' -> sẽ dùng nền tối")
         if typ == "map":
             _check_map(sc.get("map") or {}, where, E, W)
-        key = (typ, (sc.get("scene") or {}).get("elements", [{}])[0].get("kind") if sc.get("scene") and (sc.get("scene") or {}).get("elements") else None)
-        if key == run_type:
-            run_len += 1
-            if run_len == 4:
-                W.append(f"{where}: hơn 3 cảnh liền giống nhau (cùng kiểu, cùng thành phần chính) — nên xen kẽ")
-        else:
-            run_type, run_len = key, 1
+        if typ in ("timeline", "character", "compare", "tide"):
+            _check_graphic(typ, sc.get(typ), where, E, W)
+    _check_variety(plan, W)
     if len(pals_used) > 2:
         W.append(f"Video dùng {len(pals_used)} bảng màu ({', '.join(sorted(pals_used))}); khuyên chỉ 1–2 bảng cho thống nhất")
     return E, W
@@ -165,6 +160,51 @@ def _check_scene(desc, where, country, year, E, W, pals_used):
             E.append(f"{where}: '{el['kind']}' chỉ phù hợp năm {c.era[0]}–{c.era[1]}, không hợp với năm {year}")
         if year and year < 1500 and el.get("weapon") == "musket":
             E.append(f"{where}: súng hỏa mai (musket) không có vào năm {year}")
+
+
+def _check_variety(plan, W):
+    from core.diversify import stats
+    cnt, fams = stats(plan)
+    visual = [f for f in fams if f != "card"]
+    if len(visual) >= 8:
+        water = cnt.get("water", 0)
+        if water / len(visual) > 0.6:
+            W.append(f"{water}/{len(visual)} cảnh là toàn cảnh mặt nước — nên xen cảnh cận (commander, war_drum), nội thất (hall + council), "
+                     "đồ họa (timeline, character, compare, tide) hoặc nhìn qua tán lá (foliage_frame)")
+        if not any(f in cnt for f in ("close", "graphic", "interior", "forest")):
+            W.append("Video chỉ có cảnh rộng và bản đồ — nên thêm cảnh cận / đồ họa cho đa dạng (lệnh: python main.py diversify <dự án>)")
+    run, prev = 0, None
+    for sc, f in zip(plan.get("scenes") or [], fams):
+        run = run + 1 if f == prev and f in ("water", "land") else 1
+        prev = f
+        if run == 4:
+            W.append(f"Cảnh {sc.get('id')}: 4 cảnh liền cùng kiểu nền ({'mặt nước' if f == 'water' else 'đất liền'}) — nên đổi góc nhìn")
+
+
+def _check_graphic(typ, g, where, E, W):
+    if not isinstance(g, dict):
+        E.append(f"{where}: cảnh '{typ}' cần trường \"{typ}\": {{...}}")
+        return
+    if typ == "timeline":
+        ev = g.get("events")
+        if not isinstance(ev, list) or not ev or not all(isinstance(e, dict) and e.get("year") is not None for e in ev):
+            E.append(f"{where}: timeline cần 'events' = [{{\"year\": ..., \"text\": ...}}, ...]")
+        elif len(ev) > 7:
+            W.append(f"{where}: timeline chỉ hiện tối đa 7 mốc")
+    elif typ == "character":
+        if not g.get("name"):
+            E.append(f"{where}: character cần 'name'")
+        if g.get("look") and g["look"] not in ("general", "king", "scholar", "admiral", "monk", "queen"):
+            E.append(f"{where}: character look '{g['look']}' không có (general, king, scholar, admiral, monk, queen)")
+    elif typ == "compare":
+        it = g.get("items")
+        if not isinstance(it, list) or not it or not all(isinstance(i, dict) and _num(i.get("value")) for i in it):
+            E.append(f"{where}: compare cần 'items' = [{{\"label\": ..., \"value\": số}}, ...]")
+        if not g.get("note"):
+            W.append(f"{where}: compare nên có 'note' ghi độ chắc chắn của số liệu (vd: \"Số liệu theo sử cũ, chưa chắc chắn\")")
+    elif typ == "tide":
+        if "fall_at" in g and not _num(g["fall_at"]):
+            E.append(f"{where}: tide 'fall_at' phải là số giây")
 
 
 def _check_map(m, where, E, W):

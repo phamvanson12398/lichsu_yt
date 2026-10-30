@@ -24,7 +24,7 @@ WEB = os.path.join(ROOT, "web")
 PROJECTS = os.path.join(ROOT, "projects")
 VOICES = os.path.join(ROOT, "voices")
 EDITABLE = {"script.md", "plan.json", "pronunciation.json", "script_check.md"}
-ACTIONS = {"continue", "script", "plan", "preview", "voice-gen", "render", "validate", "check-facts"}
+ACTIONS = {"continue", "script", "plan", "diversify", "preview", "voice-gen", "render", "validate", "check-facts"}
 STEPS = ["parsed", "script", "plan", "voice", "render"]
 
 mimetypes.add_type("text/javascript", ".js")
@@ -306,7 +306,7 @@ class Handler(BaseHTTPRequestHandler):
                     args.append("--offline")
                 if b.get("voice") and act in ("continue", "voice-gen"):
                     args += ["--voice", b["voice"]]
-                labels = {"continue": "Chạy tiếp", "script": "Viết lại kịch bản", "plan": "Lập lại kế hoạch dựng",
+                labels = {"continue": "Chạy tiếp", "script": "Viết lại kịch bản", "plan": "Lập lại kế hoạch dựng", "diversify": "Đa dạng góc nhìn",
                           "preview": "Xem trước", "voice-gen": "Tạo giọng đọc", "render": "Dựng video",
                           "validate": "Kiểm tra plan", "check-facts": "Kiểm tra sự kiện"}
                 j = start_job(args, f"{labels[act]}: {name}", name)

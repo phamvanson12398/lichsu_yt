@@ -22,6 +22,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageEnhance
 
 from render.common import N, ROOT, RichFont, grain_frames, set_language, text_layer, vignette
+from render import infographic
 from render.map_anim import MapVisual
 from render.scene import SceneVisual
 from render.text_fx import Subtitles, TextFX
@@ -127,6 +128,10 @@ def make_visual(sc, plan, dur, OW, OH, fps, cfg, seed):
         return MapVisual(sc.get("map", {}), OW, OH, fps, dur, title=sc.get("map", {}).get("title") or plan.get("title", ""), seed=seed,
                          lang=plan.get("language", "vi"),
                          subtitles=bool(sc.get("narration")) and cfg.get("burn_subtitles", True))
+    if typ in infographic.TYPES:
+        return infographic.make(typ, sc.get(typ) or {}, OW, OH, fps, dur, palettes.get(pal_name),
+                                subtitles=bool(sc.get("narration")) and cfg.get("burn_subtitles", True), seed=seed,
+                                lang=plan.get("language", "vi"), country=country)
     if sc.get("scene"):
         return SceneVisual(sc["scene"], OW, OH, fps, dur, palette=pal_name, country=country,
                            motion=sc.get("motion", "static"), particles=sc.get("particles", []), seed=seed, **common)
@@ -215,6 +220,11 @@ def _lut(g):
 
 
 # ======================================================================== events (âm thanh)
+def _pal(sc, plan):
+    from render import palettes
+    return palettes.get(sc.get("palette") or plan.get("palette"))
+
+
 def scene_events(entry, plan, OW=1920, OH=1080):
     """Hiệu ứng âm thanh + âm nền của một cảnh, thời gian tính trong cảnh."""
     sc = entry["scene"]
@@ -227,6 +237,8 @@ def scene_events(entry, plan, OW=1920, OH=1080):
         ev += TextFX(dict(sc, text_style=style), OW, OH, start=start, dur=dur - start).events()
     if typ == "map":
         ev += MapVisual.events(_MapEv(sc.get("map", {})))
+    if typ in infographic.TYPES:
+        ev += infographic.make(typ, sc.get(typ) or {}, 320, 180, 10, dur, _pal(sc, plan)).events()
     have = {e[1] for e in ev}
     for tag in sc.get("sfx", []) or []:
         if tag not in have:

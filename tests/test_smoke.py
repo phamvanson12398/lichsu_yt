@@ -130,6 +130,47 @@ def test_quality_presets():
     assert tuple(resolve_quality({}, draft=True)["size"]) == (960, 540)
 
 
+
+GRAPHIC_PLAN = {"title": "x", "country": "vietnam", "year": 938, "language": "vi", "scenes": [
+    {"id": 1, "type": "timeline", "duration": 4, "timeline": {"title": "Bối cảnh", "events": [{"year": "905", "text": "a"}, {"year": "938", "text": "b"}]}},
+    {"id": 2, "type": "character", "narration": "Ngô Quyền là con rể Dương Đình Nghệ.",
+     "character": {"name": "Ngô Quyền", "subtitle": "898 – 944", "look": "general", "facts": ["a", "b"]}},
+    {"id": 3, "type": "compare", "duration": 4, "compare": {"items": [{"label": "A", "value": 3}, {"label": "B", "value": 5}], "note": "ước tính"}},
+    {"id": 4, "type": "tide", "narration": "Triều rút, thuyền giặc mắc cọc.", "tide": {}},
+    {"id": 5, "type": "narration", "narration": "Các tướng bàn kế.", "scene": {"background": ["hall"], "elements": [{"kind": "council"}]}},
+    {"id": 6, "type": "narration", "narration": "Trống trận vang lên.", "scene": {"background": ["sky", "river", "foliage_frame"],
+     "elements": [{"kind": "war_drum", "x": 0.3}, {"kind": "commander", "x": 0.75, "facing": -1}]}}]}
+
+
+def test_graphic_scenes_render():
+    from core.plan_schema import validate
+    from render.renderer import SceneRenderer, build_timeline, scene_events
+    E, _ = validate(GRAPHIC_PLAN)
+    assert not E, E
+    for e in build_timeline(GRAPHIC_PLAN, None, 10):
+        r = SceneRenderer(e, GRAPHIC_PLAN, 480, 270, 10, {"supersample": 1.0, "grain": 4})
+        f = r.frame(min(2.5, e["dur"] - 0.1))
+        assert f.shape == (270, 480, 3) and f.dtype == np.uint8 and f.std() > 3, e["scene"]["id"]
+        scene_events(e, GRAPHIC_PLAN, 480, 270)
+    bad = {"title": "x", "country": "vietnam", "scenes": [{"id": 1, "type": "timeline", "duration": 3, "timeline": {}},
+                                                           {"id": 2, "type": "character", "duration": 3}]}
+    E, _ = validate(bad)
+    assert len(E) == 2, E
+
+
+def test_diversify():
+    from core.diversify import diversify, family
+    sc = [{"id": i, "type": "narration", "narration": "a", "motion": "pan_left",
+           "scene": {"background": ["sky", "river"], "elements": [{"kind": "boat_vn", "x": 0.7, "y": 0.66}]}} for i in range(1, 10)]
+    plan, notes = diversify({"title": "x", "country": "vietnam", "scenes": sc})
+    fams = [family(s) for s in plan["scenes"]]
+    assert notes and any(f != "water" for f in fams)
+    assert all(not (a == b == c == "water") for a, b, c in zip(fams, fams[1:], fams[2:])), fams
+    mo = [s["motion"] for s in plan["scenes"]]
+    assert all(a != b for a, b in zip(mo, mo[1:]))
+    assert [s["narration"] for s in plan["scenes"]] == ["a"] * 9
+
+
 if __name__ == "__main__":
     n = 0
     for k, fn in list(globals().items()):

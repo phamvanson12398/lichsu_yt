@@ -86,7 +86,7 @@ def expand(el, comp, horizon, seed):
             xi = x + (i - (n - 1) / 2) * spacing + rr.uniform(-0.15, 0.15) * spacing
             yi = y + (0.025 if i % 2 else 0) + rr.uniform(-0.01, 0.01)
         sc = el.get("scale")
-        sc = float(sc) if sc is not None else comp.scale_default * persp(yi, horizon)
+        sc = float(sc) if sc is not None else comp.scale_default * (persp(yi, horizon) if comp.persp else 1.0)
         if n > 1:
             sc *= rr.uniform(0.9, 1.05) * (1 + (yi - y) * 1.5)
         out.append((xi, yi, sc))
@@ -125,11 +125,11 @@ class SceneVisual:
         self.cam = Camera(motion, dur, wsp, **cam_args)
         self.u = c.u * r
         # lửa tĩnh, hạt, lấp lánh, mũi tên
-        self.static_fires = [(X * r, Y * r, rad * r, d) for (X, Y, rad, d) in c.fires]
+        self.static_fires = [(X * r, Y * r, rad * r, d) for (X, Y, rad, d) in c.fires + c.lamps]
         self._fires_out = []
         self._extra_emit_out = []
         self.emitters = [dict(e, at=(e["at"][0] * r, e["at"][1] * r)) for e in c.effects if e.get("type") == "emitter"]
-        has_fire = bool(self.static_fires) or any(s.fires for s in self.sprites)
+        has_fire = bool(c.fires) or any(s.fires for s in self.sprites)
         parts = list(particles or [])
         auto = {"rain": "rain", "snow": "snow", "fog": "mist"}
         if weather in auto and auto[weather] not in parts:

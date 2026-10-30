@@ -38,6 +38,7 @@ class Comp:
     params: dict = field(default_factory=dict)
     bbox: tuple = (400, 400)          # khung bao (px ở 1080p, scale=1) — cho thành phần vẽ lại từng khung
     spacing: float = 0.14             # khoảng cách mặc định khi count > 1 (tỉ lệ khung)
+    persp: bool = True                # False = cận cảnh, không tự phóng to theo vị trí y
     module: str = ""
 
 
@@ -145,6 +146,7 @@ class Canvas:
         self.d = None
         self.depth = 0.5
         self.fires = []      # (px, py, r, depth)
+        self.lamps = []      # đèn: chỉ toả sáng, không bốc tàn lửa / khói
         self.effects = []    # {"type": "shimmer", ...}
         self.ox = 0
         self.oy = 0
@@ -193,6 +195,9 @@ class Canvas:
     # hiệu ứng ----------------------------------------------------
     def add_fire(self, px, py, r):
         self.fires.append((px + self.ox, py + self.oy, r, self.depth))
+
+    def add_lamp(self, px, py, r):
+        self.lamps.append((px + self.ox, py + self.oy, r, self.depth))
 
     def add_effect(self, **kw):
         self.effects.append(kw)

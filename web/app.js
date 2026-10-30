@@ -242,11 +242,12 @@ async function pageProject(name) {
         <button class="ghost" data-a="preview" ${running ? "disabled" : ""}>🖼 Xem trước</button>
         <button class="ghost" data-a="voice-gen" ${running ? "disabled" : ""}>🎙 Tạo giọng</button>
         <span class="grow"></span>
+        <button class="ghost small" data-a="diversify" title="Đổi góc nhìn các cảnh lặp nhau, không cần AI, không đổi lời đọc" ${running ? "disabled" : ""}>🎨 Đa dạng cảnh</button>
         <button class="ghost small" data-a="plan" ${running ? "disabled" : ""}>Lập lại kế hoạch</button>
         <button class="ghost small" data-a="script" ${running ? "disabled" : ""}>Viết lại kịch bản</button>
         ${running ? `<button class="danger small" id="a-stop">⏹ Dừng</button>` : ""}
       </div>
-      <small class="muted" style="display:block;margin-top:10px">“Chạy tiếp” làm các bước còn thiếu và dừng lại ở bước duyệt. Sửa kịch bản xong → “Lập lại kế hoạch”. Sửa kế hoạch xong → “Dựng video” (cảnh không đổi được giữ nguyên, rất nhanh).</small>
+      <small class="muted" style="display:block;margin-top:10px">“Chạy tiếp” làm các bước còn thiếu và dừng lại ở bước duyệt. Sửa kịch bản xong → “Lập lại kế hoạch”. Sửa kế hoạch xong → “Dựng video” (cảnh không đổi được giữ nguyên, rất nhanh). Thấy cảnh lặp nhau → “🎨 Đa dạng cảnh” rồi “Dựng video”.</small>
     </div>
     <div class="tabs" style="margin-top:22px">
       ${[["overview", "Tổng quan"], ["script", "Kịch bản"], ["plan", "Kế hoạch dựng"], ["youtube", "YouTube"], ["check", "Kiểm tra sự kiện"]]

@@ -36,13 +36,29 @@ QUY TẮC:
   Mỗi cảnh narration ~{u0}–{u1} {unit} (≈ 6–10 giây), cắt ở ranh giới câu.
 - Chữ hiện trên hình ("text", "subtext", nhãn / chú thích bản đồ, "legend") viết bằng {lang_name}.
 - Kiểu cảnh: title (chỉ cảnh đầu video) | narration | text_card (thẻ chữ, không lời, có "duration") |
-  map (bản đồ động, có thể kèm narration) | pause (cảnh ngừng không lời, có "duration").
-- Xen kẽ đa dạng: không quá 3 cảnh liền giống nhau; thỉnh thoảng chèn text_card (năm: count_year; câu nói / ý chính:
-  word_by_word hoặc typewriter; tên nhân vật / địa danh: slide_in) và map ở phần diễn biến (mũi tên hành quân).
+  map (bản đồ động, có thể kèm narration) | pause (cảnh ngừng không lời, có "duration") |
+  CẢNH ĐỒ HỌA (có thể kèm narration; không có thì cần "duration"), dữ liệu đặt trong trường cùng tên:
+    timeline : {{"timeline": {{"title": "...", "events": [{{"year": "905", "text": "..."}}, ...tối đa 7], "highlight": chỉ số mốc chính}}}}
+               — dùng khi lời kể nhắc chuỗi sự kiện / bối cảnh trước trận.
+    character: {{"character": {{"name": "...", "subtitle": "năm sinh – năm mất hoặc chức vị", "role": "ally|enemy|neutral",
+               "look": "general|king|scholar|admiral|monk|queen", "facts": ["≤ 3 ý ngắn"]}}}} — khi NHÂN VẬT QUAN TRỌNG xuất hiện lần đầu.
+    compare  : {{"compare": {{"title": "...", "unit": "...", "items": [{{"label": "...", "value": số, "side": "enemy|ally"}}], "note": "..."}}}}
+               — so sánh quân số / số thuyền; "note" BẮT BUỘC ghi độ chắc chắn ("theo sử cũ, chưa chắc chắn"). Không bịa số.
+    tide     : {{"tide": {{"label_high": "...", "label_low": "...", "label_stakes": "...", "fall_at": giây}}}}
+               — sơ đồ mặt cắt thủy triều rút làm thuyền mắc cọc (trận dựa vào thủy triều).
+- ĐA DẠNG GÓC NHÌN (quan trọng — người xem chán nếu toàn cảnh rộng sông nước):
+  * Dùng đủ các cỡ cảnh: TOÀN (cảnh rộng) | TRUNG (war_drum, đoàn quân gần, nền "bank_near") |
+    CẬN (commander: tướng đứng trên bờ, bóng lớn) | NỘI THẤT (nền "hall" + "council": bàn kế, hội họp) |
+    NHÌN LÉN ("foliage_frame" cuối background: nhìn qua tán lá ra sông — mai phục) | ĐỒ HỌA (timeline, character, compare, tide) | map.
+  * Không quá 2 cảnh liền cùng một kiểu nền (vd 2 cảnh sông rồi phải đổi sang cận / nội thất / đồ họa / bản đồ).
+  * Cảnh có mặt nước ≤ một nửa số cảnh. Cứ ~5 cảnh nên có ít nhất 1 cảnh cận, nội thất hoặc đồ họa.
+  * Đổi "time_of_day", "motion", vị trí thành phần chính (trái / giữa / phải) giữa các cảnh liền nhau.
+- Thỉnh thoảng chèn text_card (năm: count_year; câu nói / ý chính: word_by_word hoặc typewriter; tên nhân vật / địa danh:
+  slide_in) và map ở phần diễn biến (mũi tên hành quân).
 - ĐÚNG NƯỚC, ĐÚNG THỜI KỲ: chỉ dùng thành phần của "common", "{country}"{foreign}. Năm {year}: không dùng
   thành phần có [năm ...] không bao gồm năm này; không có súng (musket) trước năm 1543.
 - Toạ độ x, y theo tỉ lệ 0–1 của khung (y = điểm chạm nước / mặt đất; đường chân trời ~0.58).
-  Người, ngựa là BÓNG nhìn từ xa; ưu tiên đám đông xa, không cận mặt người.
+  Người, ngựa là BÓNG; đám đông để xa. Cận cảnh người chỉ dùng commander / war_drum / council (bóng, không vẽ mặt).
   Phụ đề chiếm ~20% dưới khung: cảnh có lời đọc nên đặt thành phần chính ở y 0.6–0.8.
   Cảnh minh họa phải khớp NỘI DUNG lời đọc của chính cảnh đó (nói về thuyền thì vẽ thuyền, kỵ binh thì vẽ kỵ binh...).
 - Bảng màu cả video: "{palette}" (cảnh nào cần khác thì ghi "palette" trong cảnh, tối đa 1 bảng phụ).
@@ -79,7 +95,15 @@ EXAMPLE = {"scenes": [
      "motion": "parallax_right", "narration": "Năm 938, Ngô Quyền cho quân cắm cọc gỗ đầu bịt sắt...",
      "sfx_at": [{"t": 1.5, "tag": "tieng_tron"}]},
     {"id": 3, "type": "text_card", "text": "938", "text_style": "count_year", "count_from": 900, "subtext": "...", "duration": 3.5},
-    {"id": 4, "type": "map", "map": {"features": ["river", "coast_right", "islands"],
+    {"id": 4, "type": "character", "character": {"name": "Ngô Quyền", "subtitle": "898 – 944", "role": "ally", "look": "general",
+                                                 "facts": ["...", "..."]}, "narration": "..."},
+    {"id": 5, "type": "narration", "scene": {"time_of_day": "night", "background": ["hall"], "elements": [{"kind": "council", "x": 0.5, "y": 0.84}]},
+     "motion": "zoom_in_slow", "narration": "..."},
+    {"id": 6, "type": "narration", "scene": {"background": ["sky", "mountains:2", "river", "bank_near:0.93"],
+                                             "elements": [{"kind": "junk_ship", "x": 0.7, "y": 0.66, "scale": 0.45, "count": 3, "flip": True},
+                                                          {"kind": "commander", "x": 0.22, "y": 0.99, "pose": "point"}]},
+     "motion": "parallax_right", "narration": "..."},
+    {"id": 7, "type": "map", "map": {"features": ["river", "coast_right", "islands"],
                                      "labels": [{"text": "Sông Bạch Đằng", "at": [0.2, 0.3], "style": "water"}],
                                      "arrows": [{"side": "enemy", "path": [[0.95, 0.75], [0.6, 0.55], [0.35, 0.38]], "start": 1.8, "dur": 2.4,
                                                  "label": "Thuyền quân Nam Hán"}],
@@ -130,7 +154,9 @@ def plan_with_ai(router, script, meta, cfg, log=print):
     scenes = []
     for i, lot in enumerate(lots):
         text = "\n\n".join(f"[{s['heading']}" + (f" | mood: {s['mood']}" if s.get("mood") else "") + "]\n" + "\n".join(s["paragraphs"]) for s in lot)
-        prev = json.dumps([{"id": s["id"], "type": s["type"], "chính": (s.get("scene") or {}).get("elements", [{}])[:1]} for s in scenes[-6:]],
+        from core.diversify import family
+        prev = json.dumps([{"id": s["id"], "type": s["type"], "kiểu_nền": family(s), "chính": (s.get("scene") or {}).get("elements", [{}])[:1]}
+                           for s in scenes[-6:]],
                           ensure_ascii=False) if scenes else "(đây là phần đầu: cảnh 1 phải là title)"
         fr = FOREIGN.get(country, [])
         prompt = PROMPT.format(lang_name=LI["name"], u0=LI["scene_units"][0], u1=LI["scene_units"][1], unit=LI["unit"],
@@ -200,6 +226,22 @@ TEMPLATES = {   # (từ khoá trong lời kể, mô tả cảnh) — y thành ph
 }
 
 
+# cảnh cận / nội thất / nhìn qua lá — dùng chung mọi nước (mũ, áo tự theo nước)
+CLOSE_TEMPLATES = [
+    ("tướng|chỉ huy|ra lệnh|hạ lệnh|thống lĩnh|general|commander|ordered|장군|명령|지휘|将|命じ|指揮",
+     {"background": ["sky", "mountains:2", "river", "bank_near:0.93"],
+      "elements": [{"kind": "commander", "x": 0.24, "y": 0.99, "pose": "point"}]}),
+    ("trống|hiệu lệnh|xung trận|tiến công|tấn công|drum|attack|charge|북|공격|太鼓|攻撃|突撃",
+     {"background": ["sky", "hills:2", "plain"], "elements": [{"kind": "war_drum", "x": 0.3, "y": 0.86},
+                                                            {"kind": "army", "x": 0.68, "y": 0.68, "width": 0.5, "rows": 3}]}),
+    ("bàn|kế|mưu|họp|bàn bạc|hội nghị|kế hoạch|plan|council|strategy|계책|회의|작전|軍議|作戦|策",
+     {"background": ["hall"], "time_of_day": "night", "elements": [{"kind": "council", "x": 0.5, "y": 0.84}]}),
+    ("mai phục|phục binh|ẩn nấp|chờ đợi|lén|ambush|hidden|waited|매복|숨어|伏兵|待ち伏せ|潜",
+     {"background": ["sky", "mountains:2", "river", "foliage_frame"], "elements": []}),
+]
+TIDE_KW = "thủy triều|triều rút|triều xuống|nước rút|tide|조수|썰물|潮"
+
+
 def _era_ok(tmpl, year):
     if not year:
         return True
@@ -266,7 +308,7 @@ def plan_rule_based(script, meta, seed=1):
     registry.load_all()
     country = meta.get("country") if meta.get("country") in TEMPLATES else "vietnam"
     year_ = int(meta["year"]) if str(meta.get("year", "")).strip().lstrip("-").isdigit() else None
-    tmpls = [t for t in TEMPLATES[country] if _era_ok(t[1], year_)] or TEMPLATES[country]
+    tmpls = ([t for t in TEMPLATES[country] if _era_ok(t[1], year_)] or TEMPLATES[country]) + CLOSE_TEMPLATES
     palette = meta.get("palette") or DEFAULT_PALETTE.get(country, "hoang_hon_do")
     year = int(meta["year"]) if str(meta.get("year", "")).strip().lstrip("-").isdigit() else None
     title = script["title"]
@@ -280,6 +322,7 @@ def plan_rule_based(script, meta, seed=1):
                    "text_style": "cinematic", "duration": 5.0, "mood": "yen_binh"})
     k = 0
     last_t = -1
+    used_tide = False
     for si, sec in enumerate(script["sections"]):
         if si == 1 and year:
             scenes.append({"id": len(scenes) + 1, "type": "text_card", "text": str(year), "text_style": "count_year",
@@ -299,6 +342,12 @@ def plan_rule_based(script, meta, seed=1):
         if cur:
             groups.append(cur)
         for gi, group in enumerate(groups):
+            gtext = " ".join(group).lower()
+            if not used_tide and any(w in gtext for w in TIDE_KW.split("|")):
+                used_tide = True
+                scenes.append({"id": len(scenes) + 1, "type": "tide", "tide": {},
+                               "narration": ("" if lg == "ja" else " ").join(group)})
+                continue
             ti = pick_template(tmpls, " ".join(group), k, last_t)
             last_t = ti
             t = tmpls[ti][1]

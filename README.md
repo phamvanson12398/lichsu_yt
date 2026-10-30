@@ -78,6 +78,13 @@ YouTube nén bằng VP9 / AV1 với bitrate cao hơn nên người xem ở 1080p
 
 Dừng duyệt mặc định sau bước 2 và 3 (`review_after` trong `config.yaml`). Sửa `script.md` thì chạy
 `python main.py plan <dự án>` để lập lại plan; sửa `plan.json` thì chạy `render` (cảnh không đổi lấy từ cache).
+`python main.py diversify <dự án>` đổi góc nhìn các cảnh lặp nhau (nhìn qua tán lá, tướng chỉ huy cận cảnh, lau sậy,
+đổi chuyển động camera) mà không gọi AI, không đổi lời đọc; bản cũ lưu ở `plan_truoc_da_dang.json`.
+
+**Các kiểu cảnh cho video đa dạng:** ngoài cảnh rộng và bản đồ còn có cảnh đồ họa `timeline` (dòng thời gian),
+`character` (thẻ nhân vật), `compare` (biểu đồ so sánh quân số, luôn kèm ghi chú độ chắc chắn), `tide` (sơ đồ thủy triều);
+cảnh cận / trung `commander` (tướng chỉ huy), `war_drum` (trống trận), nền `hall` + `council` (bàn kế trong điện / lều),
+`foliage_frame` (nhìn qua tán lá ra sông). AI lập kế hoạch được dặn không để quá 2 cảnh liền cùng kiểu nền.
 
 ### Giọng đọc
 

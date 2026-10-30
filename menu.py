@@ -122,6 +122,26 @@ def render_again():
         open_path(os.path.join(PROJECTS, p, "output"))
 
 
+def diversify():
+    p = pick_project()
+    if not p:
+        return
+    print("Tool sẽ đổi góc nhìn các cảnh lặp (nhìn qua tán lá, tướng cận cảnh, lau sậy...), KHÔNG đổi lời đọc.")
+    print("Muốn AI lập lại kế hoạch mới hoàn toàn (có thêm thẻ nhân vật, dòng thời gian...) thì chọn 'Lập lại kế hoạch bằng AI'.")
+    if run("diversify", p) == 0 and yes("Dựng lại video luôn?", "c"):
+        q = choose("Độ nét video:", QUALITIES)
+        run("render", p, "--quality", q)
+        open_path(os.path.join(PROJECTS, p, "output"))
+
+
+def replan():
+    p = pick_project()
+    if p and run("plan", p) == 0 and yes("Dựng lại video luôn?", "c"):
+        q = choose("Độ nét video:", QUALITIES)
+        run("render", p, "--quality", q)
+        open_path(os.path.join(PROJECTS, p, "output"))
+
+
 def preview():
     p = pick_project()
     if p and run("preview", p) == 0:
@@ -178,6 +198,8 @@ MENU = [
     ("Chạy tiếp dự án (sau khi duyệt / sửa)", continue_project),
     ("Xem ảnh trước các cảnh", preview),
     ("Dựng lại video (vd sau khi sửa plan.json, đổi độ nét)", render_again),
+    ("Làm cảnh đa dạng hơn cho dự án đã có (nhanh, không cần AI)", diversify),
+    ("Lập lại kế hoạch cảnh bằng AI (giữ kịch bản và giọng)", replan),
     ("Mở kịch bản / kế hoạch / thư mục kết quả", open_files),
     ("Giọng đọc", voices),
     ("Làm video mẫu 30 giây (thử máy)", lambda: (run("demo"), open_path(os.path.join(PROJECTS, "demo_bach_dang_938", "output")))),

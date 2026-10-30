@@ -24,7 +24,7 @@ if hasattr(sys.stdout, "reconfigure"):
         pass
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-COMMANDS = ["continue", "script", "plan", "validate", "voice-gen", "preview", "render", "demo", "check", "voice", "voice-save",
+COMMANDS = ["continue", "script", "plan", "diversify", "validate", "voice-gen", "preview", "render", "demo", "check", "voice", "voice-save",
             "component", "list", "check-facts", "fonts", "help"]
 
 
@@ -261,6 +261,8 @@ def main(argv=None):
             from core.llm.base import Router
             proj = _proj(args.rest[0])
             P.step_plan(proj, cfg, None if args.offline else Router(cfg, proj.p("logs"), log), log, offline=args.offline)
+        elif c == "diversify":
+            P.step_diversify(_proj(args.rest[0]), cfg, log)
         elif c == "validate":
             from core import plan_schema
             proj = _proj(args.rest[0])
