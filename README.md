@@ -18,7 +18,8 @@ rồi xuất `video_final.mp4` + `youtube.txt`. Tool **không tự đăng YouTub
 | `CAI_DAT.bat` | Cài lần đầu: kiểm tra / cài Python 3.12, thư viện, FFmpeg (qua winget), rồi kiểm tra máy |
 | `CAI_GIONG_DOC.bat` | Cài giọng đọc OmniVoice + PyTorch (tự chọn bản GPU NVIDIA hay CPU) |
 | `CHAY_TOOL.bat` | **Menu tiếng Việt**: tạo video mới, chạy tiếp, xem trước, dựng lại, giọng đọc, video mẫu... |
-| `GIAO_DIEN.bat` | Mở giao diện cửa sổ |
+| `GIAO_DIEN_WEB.bat` | **Giao diện web đẹp** trong trình duyệt (http://127.0.0.1:8765): dự án có ảnh bìa, tạo video, sửa kịch bản / plan, xem video, giọng đọc (kéo thả file hoặc ghi âm trực tiếp), cài đặt, nhật ký chạy trực tiếp |
+| `GIAO_DIEN.bat` | Giao diện cửa sổ đơn giản (tkinter) |
 
 Lần đầu bấm `CHAY_TOOL.bat` mà chưa cài, tool tự chạy phần cài đặt.
 

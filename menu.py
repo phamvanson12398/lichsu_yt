@@ -183,6 +183,7 @@ MENU = [
     ("Làm video mẫu 30 giây (thử máy)", lambda: (run("demo"), open_path(os.path.join(PROJECTS, "demo_bach_dang_938", "output")))),
     ("Kiểm tra máy đã cài đủ chưa", lambda: run("check")),
     ("Mở giao diện cửa sổ", lambda: subprocess.call([sys.executable, os.path.join(ROOT, "app.py")], cwd=ROOT)),
+    ("Mở giao diện web (đẹp hơn, trong trình duyệt)", lambda: subprocess.call([sys.executable, os.path.join(ROOT, "web", "server.py")], cwd=ROOT)),
 ]
 
 

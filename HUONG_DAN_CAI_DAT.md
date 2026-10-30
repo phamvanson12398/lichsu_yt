@@ -9,8 +9,8 @@ Tài liệu cho người không phải lập trình viên. Làm lần lượt t�
 
 1. Bấm đúp **`CAI_DAT.bat`**: tool tự kiểm tra / cài Python, thư viện, FFmpeg. Nếu nó báo "đóng cửa sổ và chạy lại" thì làm theo.
 2. (Muốn có giọng đọc) bấm đúp **`CAI_GIONG_DOC.bat`**.
-3. Dùng tool: bấm đúp **`CHAY_TOOL.bat`**, rồi chọn số trong menu (1 = tạo video mới).
-   Hoặc **`GIAO_DIEN.bat`** để dùng giao diện cửa sổ.
+3. Dùng tool: bấm đúp **`GIAO_DIEN_WEB.bat`** — trình duyệt tự mở giao diện web (giữ cửa sổ đen mở trong lúc dùng).
+   Hoặc **`CHAY_TOOL.bat`** (menu chọn số), hoặc **`GIAO_DIEN.bat`** (cửa sổ đơn giản).
 
 Nếu Windows hiện cảnh báo "Windows protected your PC": bấm **More info** → **Run anyway**.
 Các mục dưới đây là cách cài bằng tay, dùng khi file .bat báo lỗi.

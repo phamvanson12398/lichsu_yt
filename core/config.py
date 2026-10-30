@@ -9,7 +9,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULTS = {
     "writer": "agy", "planner": "claude", "checker": "claude", "check_facts": True, "fallback": True,
     "claude": {"model": None, "timeout": 900},
-    "agy": {"model": None, "timeout": 900, "prompt_via": "stdin"},
+    "agy": {"model": None, "timeout": 900, "prompt_via": "auto"},
     "narration_language": "vi",
     "default_minutes": 10, "words_per_minute": 140,
     "review_after": ["script", "plan"],

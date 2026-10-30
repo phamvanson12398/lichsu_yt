@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 500" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#26141a"/><stop offset=".55" stop-color="#8a3c2a"/><stop offset="1" stop-color="#e8803c"/>
+    </linearGradient>
+    <linearGradient id="water" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7a3a26"/><stop offset="1" stop-color="#160c0e"/>
+    </linearGradient>
+    <radialGradient id="sun" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#ffe2aa"/><stop offset=".35" stop-color="#ffc878" stop-opacity=".7"/><stop offset="1" stop-color="#ff9a4a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1600" height="500" fill="url(#sky)"/>
+  <circle cx="1150" cy="300" r="190" fill="url(#sun)"/>
+  <circle cx="1150" cy="300" r="62" fill="#ffe2aa"/>
+  <path d="M0 300 C120 230 220 260 330 220 S560 250 700 210 S920 270 1050 240 S1300 200 1420 250 S1560 230 1600 240 V330 H0Z" fill="#7a3e40"/>
+  <path d="M0 320 C150 280 260 300 420 270 S680 300 820 280 S1100 310 1260 285 S1500 300 1600 290 V340 H0Z" fill="#4e2830"/>
+  <rect y="330" width="1600" height="170" fill="url(#water)"/>
+  <g stroke="#f0965a" stroke-opacity=".55" stroke-width="3">
+    <path d="M1080 360h90M1120 380h70M1060 400h120M1100 425h60M1040 450h140"/>
+    <path d="M200 380h50M420 410h70M640 370h40M820 430h60M300 460h80"/>
+  </g>
+  <g fill="#1d0f0e">
+    <path d="M980 345h190l-25 22h-145z"/><path d="M1035 345v-120M1095 345v-100" stroke="#1d0f0e" stroke-width="6"/>
+    <path d="M1037 232l60 8 4 95h-64z" fill="#9a5a34"/><path d="M1097 252l48 6 4 76h-52z" fill="#9a5a34"/>
+    <path d="M1300 352h120l-16 14h-92z"/><path d="M1340 352v-70" stroke="#1d0f0e" stroke-width="4"/>
+    <path d="M1342 288l38 5 3 56h-41z" fill="#8a4e2e"/>
+  </g>
+  <g fill="#120a08">
+    <path d="M60 470l10-70 6-14 6 14 8 70z"/><path d="M130 470l9-60 6-14 6 14 7 60z"/><path d="M200 470l10-80 6-14 6 14 8 80z"/>
+    <path d="M280 470l8-55 5-12 5 12 7 55z"/><path d="M350 470l10-75 6-14 6 14 8 75z"/><path d="M430 470l9-62 6-14 6 14 7 62z"/>
+  </g>
+  <g fill="#9aa0a6"><path d="M70 400l6-14 6 14z"/><path d="M139 410l6-14 6 14z"/><path d="M210 390l6-14 6 14z"/>
+    <path d="M288 415l5-12 5 12z"/><path d="M360 395l6-14 6 14z"/><path d="M439 408l6-14 6 14z"/></g>
+</svg>

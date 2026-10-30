@@ -6,6 +6,7 @@ Người dùng có thể dừng sau bước 2 hoặc 3 để duyệt / sửa, r�
 import json
 import os
 import shutil
+import sys
 import time
 
 from core import config as config_mod
@@ -327,7 +328,9 @@ def run(proj, cfg, log=print, auto=False, draft=False, offline=False, ask=input,
                 log(f"   (không tạo được ảnh xem trước: {e})")
             return "review_plan"
     proj.mark("plan", approved=True)
-    step_voice(proj, cfg, router, log, draft=draft, auto=auto, ask=ask, voice_name=voice_name)
+    # không có bàn phím (chạy từ giao diện web) -> tự chọn giọng ứng viên tốt nhất
+    interactive = bool(sys.stdin) and sys.stdin.isatty()
+    step_voice(proj, cfg, router, log, draft=draft, auto=auto or not interactive, ask=ask, voice_name=voice_name)
     return step_render(proj, cfg, log, draft=draft, quality=quality)
 
 

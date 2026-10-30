@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Xưởng Video Lịch Sử</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <aside class="side">
+    <a class="brand" href="#/">
+      <span class="brand-mark">史</span>
+      <span class="brand-text"><b>Xưởng Video</b><small>Lịch sử vẽ bằng code</small></span>
+    </a>
+    <nav>
+      <a href="#/" data-nav="home"><i>▦</i>Dự án</a>
+      <a href="#/new" data-nav="new"><i>＋</i>Tạo video mới</a>
+      <a href="#/voices" data-nav="voices"><i>◉</i>Giọng đọc</a>
+      <a href="#/settings" data-nav="settings"><i>⚙</i>Cài đặt</a>
+    </nav>
+    <div class="side-foot">
+      <button class="ghost small" id="btn-demo">▶ Video mẫu 30 giây</button>
+      <button class="ghost small" id="btn-check">✓ Kiểm tra máy</button>
+    </div>
+  </aside>
+
+  <main id="view"></main>
+
+  <section id="dock" class="dock hidden">
+    <header>
+      <span class="dot"></span><b id="dock-title">Đang chạy</b>
+      <span class="grow"></span>
+      <button class="ghost small" id="dock-stop">Dừng</button>
+      <button class="ghost small" id="dock-toggle">Thu gọn</button>
+      <button class="ghost small" id="dock-close">✕</button>
+    </header>
+    <pre id="dock-log"></pre>
+  </section>
+  <div id="toasts"></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

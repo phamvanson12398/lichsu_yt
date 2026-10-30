@@ -14,7 +14,7 @@ claude:
 agy:
   model: null
   timeout: 900
-  prompt_via: stdin  # nếu agy không nhận prompt từ stdin, đổi thành: arg
+  prompt_via: auto   # auto: dính vào -p='...', prompt dài thì qua file prompt.md | arg | file
   use_json_schema: true
 
 # ---- Nội dung

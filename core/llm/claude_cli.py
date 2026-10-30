@@ -15,7 +15,7 @@ class ClaudeCLI(CLIBackend):
     label = "Claude Code (claude)"
 
     def build_args(self, schema=None, write_dir=None, allowed_tools=None):
-        args = ["-p", "--output-format", "json"]
+        args = ["--output-format", "json"]
         if self.cfg.get("model"):
             args += ["--model", str(self.cfg["model"])]
         if allowed_tools:

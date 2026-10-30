@@ -98,6 +98,12 @@ class CLIBackend:
         self.log_dir = log_dir
 
     # -- được lớp con cài đặt
+    def prompt_args(self, prompt, cwd, exe):
+        """Mặc định: cờ -p, nội dung prompt gửi qua stdin. Trả về (tham số, văn_bản_stdin)."""
+        if self.cfg.get("prompt_via") == "arg" and len(prompt) < 7000:
+            return ["-p", prompt], None
+        return ["-p"], prompt
+
     def build_args(self, schema=None, write_dir=None, allowed_tools=None):
         raise NotImplementedError
 
@@ -128,15 +134,12 @@ class CLIBackend:
         if cwd is None:
             tmp = tempfile.mkdtemp(prefix="hvt_ai_")
             cwd = tmp
-        args = [exe] + self.build_args(schema=schema, allowed_tools=allowed_tools)
-        via_arg = self.cfg.get("prompt_via") == "arg" and len(prompt) < 7000
-        if via_arg:      # đặt prompt ngay sau -p (đúng cú pháp  cli -p "<prompt>" ...)
-            i = args.index("-p") + 1
-            args = args[:i] + [prompt] + args[i:]
+        pargs, stdin_text = self.prompt_args(prompt, cwd, exe)
+        args = [exe] + pargs + self.build_args(schema=schema, allowed_tools=allowed_tools)
         env = dict(os.environ, PYTHONIOENCODING="utf-8")
         t0 = time.time()
         try:
-            p = subprocess.run(args, input=None if via_arg else prompt, capture_output=True, text=True, encoding="utf-8",
+            p = subprocess.run(args, input=stdin_text, stdin=None if stdin_text is not None else subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8",
                                errors="replace", timeout=timeout, cwd=cwd, env=env)
         except subprocess.TimeoutExpired:
             self._log(prompt, "", "timeout", time.time() - t0, False)
