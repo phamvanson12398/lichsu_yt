@@ -42,8 +42,8 @@ if errorlevel 1 (
 )
 echo.
 echo Cài OmniVoice...
-%PY% -m pip install "omnivoice[tn]"
-if errorlevel 1 %PY% -m pip install omnivoice
+rem Không cài "omnivoice[tn]": phần chuẩn hoá văn bản cần pynini, không cài được trên Windows; tool tự chuẩn hoá.
+%PY% -m pip install omnivoice
 echo.
 %PY% main.py check
 echo.

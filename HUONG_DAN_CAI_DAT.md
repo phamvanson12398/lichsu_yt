@@ -104,13 +104,16 @@ Lưu ý: hai CLI dùng hạn mức gói đăng ký. Tool đã gộp việc thàn
 2. Cài OmniVoice:
 
    ```
-   pip install "omnivoice[tn]"
+   pip install omnivoice
    ```
 
 3. `python main.py check` phải thấy dòng `✔ PyTorch ... GPU: ...` và `✔ OmniVoice`.
 
+> Không cần cài `omnivoice[tn]` / WeTextProcessing / pynini (rất khó cài trên Windows): tool tự đổi số, năm, số La Mã
+> thành chữ trước khi đưa cho OmniVoice. Nếu từng gặp lỗi "requires WeTextProcessing", chỉ cần cập nhật tool là hết.
+
 ### 5b. Không có card NVIDIA
-- `pip install torch torchaudio` rồi `pip install "omnivoice[tn]"`. Chạy bằng CPU được nhưng CHẬM
+- `pip install torch torchaudio` rồi `pip install omnivoice`. Chạy bằng CPU được nhưng CHẬM
   (tool sẽ báo thời gian ước tính sau câu đầu tiên). Máy Mac chip M dùng bản PyTorch thường.
 
 ### 5c. Thêm giọng của bạn (cách A — khuyên dùng, tiếng Việt tốt nhất)

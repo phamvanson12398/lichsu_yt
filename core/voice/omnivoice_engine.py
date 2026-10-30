@@ -2,6 +2,8 @@
 
 - Nạp model MỘT lần cho cả phiên, dùng lại cho mọi câu.
 - generate() hỗ trợ: text, ref_audio, ref_text, instruct, voice_clone_prompt, speed, duration, num_step, normalize_text.
+- normalize_text mặc định TẮT: tool đã tự đổi số -> chữ, số La Mã, viết tắt (core/voice/text_norm.py, core/lang.py).
+  Chuẩn hoá của OmniVoice cần WeTextProcessing / pynini, rất khó cài trên Windows và chỉ hỗ trợ tiếng Anh / Trung.
   Thư viện có thể đổi tên tham số giữa các phiên bản -> chỉ truyền tham số mà hàm generate() thực sự nhận
   (đọc bằng inspect). Kiểm tra lại docs/voice-design.md của OmniVoice khi nâng cấp.
 - Nhận dạng giọng nói (Whisper) để: tự điền lời mẫu (ref_text) và kiểm tra chất lượng câu đã tạo.
@@ -154,15 +156,26 @@ class OmniVoiceEngine:
         return a, int(sr)
 
     def generate(self, text, ref_audio=None, ref_text=None, instruct=None, voice_clone_prompt=None, speed=1.0,
-                 num_step=None, duration=None, normalize_text=True):
+                 num_step=None, duration=None, normalize_text=None):
         self.load()
+        if normalize_text is None:
+            normalize_text = bool(self.cfg.get("omnivoice_normalize", False)) and not getattr(self, "_tn_missing", False)
         kw = {"text": text, "ref_audio": ref_audio, "ref_text": ref_text, "instruct": instruct,
               "voice_clone_prompt": voice_clone_prompt, "speed": speed, "duration": duration,
               "num_step": num_step or self.cfg.get("num_step", 32), "normalize_text": normalize_text}
         kw = {k: v for k, v in kw.items() if v is not None}
         if self._gen_params is not None:
             kw = {k: v for k, v in kw.items() if k in self._gen_params}
-        out = self.model.generate(**kw)
+        try:
+            out = self.model.generate(**kw)
+        except ImportError as e:
+            if "WeTextProcessing" not in str(e) and "tn" not in str(e):
+                raise
+            # thiếu thư viện chuẩn hoá của OmniVoice -> tắt hẳn, tool đã tự chuẩn hoá văn bản
+            self._tn_missing = True
+            self.log("ℹ️  Bỏ qua chuẩn hoá văn bản của OmniVoice (thiếu WeTextProcessing) — tool đã tự đổi số thành chữ.")
+            kw["normalize_text"] = False
+            out = self.model.generate(**kw)
         return self._to_audio(out)
 
     def clone_prompt(self, ref_audio, ref_text):
