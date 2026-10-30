@@ -103,3 +103,30 @@ def get(name):
 
 def names():
     return list(PALETTES)
+
+
+# Mỗi giờ trong ngày kéo màu về một bảng tham chiếu (trời ban ngày xanh, đêm xanh thẫm...), vẫn giữ một phần màu chủ đạo
+# của video để các cảnh đồng bộ. Cờ hai phe và màu lửa giữ nguyên theo bảng của video.
+TIME_REF = {"day": "trua_nang", "dawn": "binh_minh_xanh", "night": "dem_trang", "dusk": "hoang_hon_do"}
+KEEP = ("mo_ta", "flag_ally", "flag_enemy", "fire")
+_cache = {}
+
+
+def _mix(a, b, w):
+    if isinstance(a, (list, tuple)) and a and isinstance(a[0], (list, tuple)):
+        return [_mix(x, y, w) for x, y in zip(a, b)]
+    return tuple(int(round(x + (y - x) * w)) for x, y in zip(a, b))
+
+
+def for_time(name, tod, weight=0.7):
+    """Bảng màu của video chỉnh theo giờ trong cảnh (dawn | day | dusk | night)."""
+    ref = TIME_REF.get(tod or "dusk")
+    base = get(name)
+    if not ref or ref == (name or DEFAULT) or name in ("giay_co",) or (tod == "night" and name == "dem_lua"):
+        return base
+    key = (name, tod, weight)
+    if key not in _cache:
+        r = PALETTES[ref]
+        _cache[key] = {k: (v if k in KEEP or k not in r else _mix(v, r[k], weight)) for k, v in base.items()}
+    return _cache[key]
+

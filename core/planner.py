@@ -58,6 +58,8 @@ QUY TẮC:
                "look": "general|king|scholar|admiral|monk|queen", "facts": ["≤ 3 ý ngắn"]}}}} — khi NHÂN VẬT QUAN TRỌNG xuất hiện lần đầu.
     compare  : {{"compare": {{"title": "...", "unit": "...", "items": [{{"label": "...", "value": số, "side": "enemy|ally"}}], "note": "..."}}}}
                — so sánh quân số / số thuyền; "note" BẮT BUỘC ghi độ chắc chắn ("theo sử cũ, chưa chắc chắn"). Không bịa số.
+               CHỈ dùng khi lời kể có CON SỐ CỤ THỂ khác nhau giữa các bên; sử chỉ ghi "quá nửa", "rất đông"... thì
+               KHÔNG dùng compare (thay bằng text_card hoặc cảnh minh họa).
     tide     : {{"tide": {{"label_high": "...", "label_low": "...", "label_stakes": "...", "fall_at": giây}}}}
                — sơ đồ mặt cắt thủy triều rút làm thuyền mắc cọc (trận dựa vào thủy triều).
 - ĐA DẠNG GÓC NHÌN (quan trọng — người xem chán nếu toàn cảnh rộng sông nước):
@@ -66,7 +68,10 @@ QUY TẮC:
     NHÌN LÉN ("foliage_frame" cuối background: nhìn qua tán lá ra sông — mai phục) | ĐỒ HỌA (timeline, character, compare, tide) | map.
   * Không quá 2 cảnh liền cùng một kiểu nền (vd 2 cảnh sông rồi phải đổi sang cận / nội thất / đồ họa / bản đồ).
   * Cảnh có mặt nước ≤ một nửa số cảnh. Cứ ~5 cảnh nên có ít nhất 1 cảnh cận, nội thất hoặc đồ họa.
-  * Đổi "time_of_day", "motion", vị trí thành phần chính (trái / giữa / phải) giữa các cảnh liền nhau.
+  * Đổi "motion", vị trí thành phần chính (trái / giữa / phải) giữa các cảnh liền nhau.
+  * "time_of_day" đi theo THỜI ĐIỂM CÂU CHUYỆN, không đổi cho vui: các cảnh của cùng một sự kiện / một trận giữ cùng
+    giờ (hoặc chuyển dần: day -> dusk -> night); chỉ nhảy giờ khi câu chuyện chuyển sang sự kiện khác.
+  * Nhân vật phe địch dùng commander với "side": "enemy" (tự đội mũ nước địch), vd tướng Nam Hán.
 - Thỉnh thoảng chèn text_card (năm: count_year; câu nói / ý chính: word_by_word hoặc typewriter; tên nhân vật / địa danh:
   slide_in) và map ở phần diễn biến (mũi tên hành quân).
 - ĐÚNG NƯỚC, ĐÚNG THỜI KỲ: chỉ dùng thành phần của "common", "{country}"{foreign}. Năm {year}: không dùng
@@ -192,7 +197,8 @@ def plan_with_ai(router, script, meta, cfg, log=print):
                 return ["Thiếu mảng 'scenes'"]
             for k, s in enumerate(sc):
                 s["id"] = start_id + k
-            E, _ = validate({"title": script["title"], "country": country, "palette": palette, "scenes": sc}, year=year)
+            E, W = validate({"title": script["title"], "country": country, "palette": palette, "scenes": sc}, year=year)
+            E += [w for w in W if "cột bằng nhau" in w or "số 'minh họa'" in w]   # lúc lập plan thì bắt AI sửa luôn
             got = " ".join(s.get("narration", "") for s in sc)
             cov = coverage(got, lot_text)
             if cov < 0.9:

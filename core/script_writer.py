@@ -205,7 +205,7 @@ def word_count(script, lang="vi"):
     return sum(L.count(p, lang) for s in script["sections"] for p in s["paragraphs"])
 
 
-def target_words(minutes, wpm=200, pause_ratio=0.03):
+def target_words(minutes, wpm=200, pause_ratio=0.12):
     return int(minutes * wpm * (1 - pause_ratio))
 
 

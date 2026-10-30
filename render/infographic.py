@@ -94,14 +94,14 @@ class TimelineVisual(_Base):
         self.title(fr, t)
         d = ImageDraw.Draw(fr)
         n = max(1, len(self.evs))
-        y = (self.bottom * 0.5 + 40 * k) if not self.spec.get("title") else self.bottom * 0.52
+        y = self.bottom * 0.48 if not self.spec.get("title") else self.bottom * 0.5
         x0, x1 = OW * 0.08, OW * 0.92
         prog = ease((t - 0.2) / max(0.5, 0.5 + self.step * n))
         d.line([(x0, y), (x0 + (x1 - x0) * prog, y)], fill=GOLD + (255,), width=max(2, int(4 * k)))
         if prog >= 0.98:
             d.polygon([(x1 + 4 * k, y - 12 * k), (x1 + 28 * k, y), (x1 + 4 * k, y + 12 * k)], fill=GOLD + (255,))
         gap = (x1 - x0) / n
-        rf = RichFont("serif", 27 * k)
+        rf = RichFont("serif", 34 * k)
         for i, (e, ti) in enumerate(zip(self.evs, self.times())):
             a = ease_out((t - ti) / 0.4)
             if a <= 0:
@@ -115,12 +115,12 @@ class TimelineVisual(_Base):
                     d.ellipse([cx - rr, y - rr, cx + rr, y + rr], outline=(200, 70, 40, int(160 * a / (g + 1))), width=max(1, int(3 * k)))
             d.ellipse([cx - r, y - r, cx + r, y + r], fill=(255, 236, 190, int(255 * a)) if hi else GOLD + (int(255 * a),),
                       outline=(40, 25, 10, 255), width=max(1, int(2 * k)))
-            yl = self.T(f"y{i}", N(str(e.get("year", ""))), "serif_bold", 54 if hi else 44, fill=(255, 236, 190) if hi else GOLD)
-            _paste(fr, yl, cx, y - 58 * k - 20 * k * (1 - a), a, center=True)
-            lines = wrap_text(N(str(e.get("text", ""))), rf, gap * 0.92)[:3]
+            yl = self.T(f"y{i}", N(str(e.get("year", ""))), "serif_bold", 68 if hi else 54, fill=(255, 236, 190) if hi else GOLD)
+            _paste(fr, yl, cx, y - 66 * k - 20 * k * (1 - a), a, center=True)
+            lines = wrap_text(N(str(e.get("text", ""))), rf, gap * 0.94)[:3]
             for j, ln in enumerate(lines):
-                lay = self.T(f"t{i}{j}", ln, "serif", 27, fill=(232, 222, 205))
-                _paste(fr, lay, cx, y + 48 * k + j * 36 * k + 14 * k * (1 - a), a, center=True)
+                lay = self.T(f"t{i}{j}", ln, "serif", 34, fill=(240, 230, 214))
+                _paste(fr, lay, cx, y + 56 * k + j * 44 * k + 14 * k * (1 - a), a, center=True)
 
     def events(self):
         ev = [(0.2, "whoosh", 0.6)]
@@ -327,8 +327,14 @@ class TideVisual(_Base):
             d.line([(0, y), (OW, y)], fill=tuple(int(top[i] + (low[i] - top[i]) * u) for i in range(3)))
         pts = [(x, OH * 0.33 - 60 * k * (0.6 * math.sin(x / OW * 7) + 0.4 * math.sin(x / OW * 17 + 1))) for x in range(0, OW + 20, 20)]
         d.polygon(pts + [(OW, self.bed), (0, self.bed)], fill=tuple(self.pal["mount"][1]))
-        d.rectangle([0, self.bed, OW, OH], fill=(58, 44, 32))
-        d.line([(0, self.bed), (OW, self.bed)], fill=(90, 70, 50), width=max(1, int(3 * k)))
+        for yy in range(int(self.bed), OH):          # bùn đáy sông: sẫm dần xuống dưới, lấm tấm sỏi
+            u = (yy - self.bed) / max(1, OH - self.bed)
+            d.line([(0, yy), (OW, yy)], fill=(int(74 - 40 * u), int(56 - 30 * u), int(38 - 20 * u)))
+        for _ in range(int(260 * k)):
+            px, py = rr.uniform(0, OW), rr.uniform(self.bed + 6 * k, OH)
+            r_ = rr.uniform(2, 6) * k
+            d.ellipse([px - r_, py - r_ * 0.6, px + r_, py + r_ * 0.6], fill=(92, 74, 54))
+        d.line([(0, self.bed), (OW, self.bed)], fill=(104, 82, 58), width=max(1, int(4 * k)))
         self.static = im
 
     def level(self, t):
@@ -376,10 +382,10 @@ class TideVisual(_Base):
                 d.polygon([(ax - 14 * k, ay + sg * 6 * k), (ax + 14 * k, ay + sg * 6 * k), (ax, ay + sg * 24 * k)], fill=col + (int(255 * a),))
         lab = self.spec.get("label_stakes", ui(self.lang, "stakes"))
         if lab:
-            st = self.T("st", N(lab), "serif_italic", 32, fill=(236, 228, 214))
+            st = self.T("st", N(lab), "serif_italic", 40, fill=(236, 228, 214))
             sx, sy = self.stakes[-3][0], self.stakes[-3][1]
             a = ease((t - 0.8) / 0.5)
-            _paste(fr, st, OW - st.width - 60 * k, self.bed + 10 * k if not self.subtitles else sy - 120 * k, a)
+            _paste(fr, st, OW - st.width - 60 * k, self.bed + 12 * k, a)
         return fr.convert("RGB")
 
     def _boat(self, fr, x, y, sc, tilt):

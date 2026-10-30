@@ -148,7 +148,28 @@ def diversify(plan, country=None):
             sc["motion"] = new
             notes.append(f"Cảnh {sc.get('id')}: đổi chuyển động camera {mo} -> {new}")
         last = sc.get("motion", "static")
+    _smooth_light(scenes, notes)
     return plan, notes
+
+
+TOD_ORDER = {"dawn": 0, "day": 1, "dusk": 2, "night": 3}
+
+
+def _smooth_light(scenes, notes):
+    """Ánh sáng liền mạch: một cảnh ngoài trời lạc giờ giữa hai cảnh cùng giờ (vd dusk - night - dusk) thì theo hai cảnh bên;
+    cảnh nhảy ngày <-> đêm ngay cạnh nhau thì chèn giờ chuyển tiếp (hoàng hôn)."""
+    outs = [i for i, sc in enumerate(scenes) if sc.get("scene") and "hall" not in _bg_names(sc["scene"]) and sc.get("type") != "title"]
+    tod = lambda i: scenes[i]["scene"].get("time_of_day", "dusk")
+    for a, b, c in zip(outs, outs[1:], outs[2:]):
+        if c - a > 4:                     # cách nhau xa (có bản đồ / đồ họa xen giữa) thì coi như cảnh mới
+            continue
+        if tod(a) == tod(c) != tod(b):
+            notes.append(f"Cảnh {scenes[b].get('id')}: ánh sáng {tod(b)} -> {tod(a)} cho liền mạch với cảnh bên cạnh")
+            scenes[b]["scene"]["time_of_day"] = tod(a)
+    for a, b in zip(outs, outs[1:]):
+        if b - a <= 2 and abs(TOD_ORDER.get(tod(a), 2) - TOD_ORDER.get(tod(b), 2)) >= 2 and {tod(a), tod(b)} == {"day", "night"}:
+            notes.append(f"Cảnh {scenes[b].get('id')}: ánh sáng {tod(b)} -> dusk (chuyển dần ngày sang đêm)")
+            scenes[b]["scene"]["time_of_day"] = "dusk"
 
 
 def stats(plan):

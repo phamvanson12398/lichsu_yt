@@ -11,6 +11,17 @@ from assets_code.registry import component
 from render.common import lerp, mix
 
 HEADS = {"vietnam": "round", "china": "cone", "korea": "joseon_helmet", "japan": "kabuto", "england": "norman"}
+ENEMY_OF = {"vietnam": "china", "korea": "japan", "japan": "korea", "china": "vietnam"}   # mũ mặc định của phe địch
+
+
+def _head(c, head, side, country):
+    if head:
+        return head
+    if country:
+        return HEADS.get(country, "round")
+    if side == "enemy" and c.country in ENEMY_OF:
+        return HEADS[ENEMY_OF[c.country]]
+    return HEADS.get(c.country, "round")
 
 
 def _rgb(v, default):
@@ -67,15 +78,16 @@ def _commander(d, X, Y, H, col, facing, pose, head, accent):
            desc="Tướng chỉ huy CẬN CẢNH (bóng lớn cao ~60% khung, viền sáng). Đặt y 0.9–1.0, x 0.25–0.4 hoặc 0.6–0.75; "
                 "phía sau là nền xa (sông, đồi, doanh trại...).",
            params={"pose": "point | sword_up | stand", "facing": "1 (nhìn phải) / -1",
-                   "head": "kiểu mũ (mặc định theo nước)", "side": "ally | enemy"})
-def draw_commander(c, x, y, scale, t, pose="point", facing=1, head=None, side="ally", **p):
+                   "head": "kiểu mũ (mặc định theo nước)", "side": "ally | enemy (phe địch tự đội mũ nước địch)",
+                   "country": "nước của nhân vật (vd china cho tướng Nam Hán) — tuỳ chọn"})
+def draw_commander(c, x, y, scale, t, pose="point", facing=1, head=None, side="ally", country=None, **p):
     X, Y = c.px(x), c.py(y)
     H = 640 * c.u * float(scale)
     try:
         f = 1 if float(facing) >= 0 else -1
     except (TypeError, ValueError):
         f = 1
-    head = head or HEADS.get(c.country, "round")
+    head = _head(c, head, side, country)
     col = c.pal["sil"] + (255,)
     rim = lerp(c.pal["sun_glow"], (255, 240, 210), 0.3) + (255,)
     accent = c.pal["flag_enemy" if side == "enemy" else "flag_ally"][:3] + (255,)

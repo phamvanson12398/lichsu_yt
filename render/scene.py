@@ -101,8 +101,11 @@ class SceneVisual:
         desc = desc or {}
         self.desc = desc
         pal_name = desc.get("palette") or palette
-        self.pal = palettes.get(pal_name)
-        self.night = desc.get("time_of_day") == "night" and pal_name not in ("dem_lua", "dem_trang")
+        tod = desc.get("time_of_day", "dusk")
+        # cảnh tự ghi bảng màu riêng thì dùng đúng bảng đó; không thì bảng của video được chỉnh theo giờ trong cảnh
+        self.pal = palettes.get(pal_name) if desc.get("palette") else palettes.for_time(pal_name, tod)
+        # phủ màu đêm chỉ khi cảnh tự chọn bảng màu không phải bảng đêm (bảng chỉnh theo giờ đã là màu đêm)
+        self.night = tod == "night" and bool(desc.get("palette")) and pal_name not in ("dem_lua", "dem_trang")
         sp = canvas_spec(motion, OW, OH, supersample, max_draw_h=max_draw_h)
         cam_args = dict(focus=tuple(desc.get("focus", focus)), strength=float(desc.get("motion_strength", 1.0)))
         self.cam = Camera(motion, dur, sp, **cam_args)

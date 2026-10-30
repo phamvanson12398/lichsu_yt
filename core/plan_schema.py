@@ -200,6 +200,11 @@ def _check_graphic(typ, g, where, E, W):
         it = g.get("items")
         if not isinstance(it, list) or not it or not all(isinstance(i, dict) and _num(i.get("value")) for i in it):
             E.append(f"{where}: compare cần 'items' = [{{\"label\": ..., \"value\": số}}, ...]")
+        elif len(it) >= 2 and len({i["value"] for i in it}) == 1:
+            W.append(f"{where}: compare có các cột bằng nhau ({it[0]['value']}) — không có gì để so; sử không ghi số cụ thể "
+                     "thì đừng dùng compare, dùng text_card hoặc cảnh minh họa")
+        if "minh h" in (str(g.get("unit", "")) + " ".join(str(i.get("display", "")) for i in it or [] if isinstance(i, dict))).lower():
+            W.append(f"{where}: compare dùng số 'minh họa' (không có trong sử) — nên bỏ, chỉ so số liệu có nguồn")
         if not g.get("note"):
             W.append(f"{where}: compare nên có 'note' ghi độ chắc chắn của số liệu (vd: \"Số liệu theo sử cũ, chưa chắc chắn\")")
     elif typ == "tide":
