@@ -17,6 +17,7 @@ def test_num2words():
     assert num2words(21) == "hai mươi mốt" and num2words(25) == "hai mươi lăm" and num2words(105) == "một trăm linh năm"
     assert "thế kỷ mười" in normalize("TK X")
     assert normalize("Yi Sun-sin", {"Yi Sun-sin": "I Xun Xin"}) == "I Xun Xin"
+    assert normalize("Lưu Hoằng Tháo (Liu Hongcao), dẫn quân.") == "Lưu Hoằng Tháo, dẫn quân."   # tên gốc trong ngoặc: không đọc
 
 
 def test_input_parser():

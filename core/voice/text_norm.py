@@ -113,10 +113,17 @@ def apply_pronunciation(text, pron):
     return text
 
 
+def drop_asides(t):
+    """Bỏ phần trong ngoặc khi ĐỌC (tên gốc, phiên âm như "(Liu Hongcao)", "（イ・スンシン）"); phụ đề vẫn giữ.
+    Ngoặc có chữ số (vd năm "(898 – 944)") vẫn đọc."""
+    t = re.sub(r"\s*[(（][^()（）\d]*[)）]", "", t)
+    return re.sub(r"\s+([,.;:!?，。、！？])", r"\1", t).strip()
+
+
 def normalize(text, pron=None, lang="vi"):
     """Văn bản để đọc (không dùng để hiển thị), theo ngôn ngữ lời kể vi | en | ko | ja."""
     from core import lang as L
-    t = _nfc(text)
+    t = drop_asides(_nfc(text))
     if pron:
         t = apply_pronunciation(t, pron)
     lc = L.code(lang)
