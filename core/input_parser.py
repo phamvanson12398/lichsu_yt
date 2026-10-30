@@ -65,16 +65,30 @@ def guess_era(country, year):
     return f"năm {year}"
 
 
-def parse(line, default_minutes=10):
-    """Trả về dict: topic, minutes, year, country (đoán, có thể None), era, slug."""
+LANG_TAG = r"(vi|en|ko|ja|kr|jp|tiếng\s+việt|tiếng\s+anh|tiếng\s+hàn|tiếng\s+nhật|english|korean|japanese)"
+
+
+def parse(line, default_minutes=10, default_lang="vi"):
+    """Trả về dict: topic, minutes, year, country (đoán, có thể None), era, slug, language.
+
+    Ngôn ngữ lời kể ghi kèm trong ngoặc: "Trận Hastings năm 1066 (8p, en)" hoặc "(10p tiếng Nhật)" hoặc "[ko]".
+    """
+    from core import lang as L
     line = _nfc(line.strip())
     minutes = default_minutes
-    m = re.search(r"\(\s*(\d+(?:[.,]\d+)?)\s*(p|ph|phút|m|min|')?\s*\)", line, re.I)
+    language = L.code(default_lang)
+    m = re.search(r"\(\s*(\d+(?:[.,]\d+)?)\s*(p|ph|phút|m|min|')?\s*(?:[,;/]?\s*" + LANG_TAG + r")?\s*\)", line, re.I)
     if m:
         minutes = float(m.group(1).replace(",", "."))
+        if m.group(3):
+            language = L.code(m.group(3))
         line_topic = (line[: m.start()] + line[m.end():]).strip()
     else:
         line_topic = line
+    m2 = re.search(r"[\[(]\s*" + LANG_TAG + r"\s*[\])]", line_topic, re.I)
+    if m2:
+        language = L.code(m2.group(1))
+        line_topic = (line_topic[: m2.start()] + line_topic[m2.end():]).strip()
     years = [int(y) for y in re.findall(r"\b(\d{3,4})\b", line_topic)]
     year = years[0] if years else None
     low = line_topic.lower()
@@ -85,4 +99,5 @@ def parse(line, default_minutes=10):
         if score > best:
             country, best = c, score
     return {"topic": line_topic, "minutes": minutes, "year": year, "country": country,
-            "era": guess_era(country, year) if country else "", "slug": slugify(line_topic), "raw": line}
+            "era": guess_era(country, year) if country else "", "slug": slugify(line_topic) + ("" if language == "vi" else "_" + language),
+            "raw": line, "language": language}

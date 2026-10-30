@@ -97,6 +97,39 @@ def test_rule_planner():
     assert plan["scenes"][0]["type"] == "title"
 
 
+def test_languages_numbers():
+    from core.voice.text_norm import normalize
+    assert normalize("In 1066, 7,000 men.", None, "en") == "In ten sixty-six, seven thousand men."
+    assert normalize("Henry VIII", None, "en") == "Henry the Eighth"
+    assert normalize("1592년 6월", None, "ko") == "천오백구십이년 유월"
+    assert normalize("1600年", None, "ja") == "千六百年"
+
+
+def test_languages_split_and_wrap():
+    from core import lang as L
+    from render.common import RichFont, set_language, wrap_text
+    assert L.split_sentences("関ヶ原の戦い。東軍が勝った！", "ja") == ["関ヶ原の戦い。", "東軍が勝った！"]
+    assert L.count("이순신 장군", "ko") == 5 and L.count("In 1066 he won", "en") == 4
+    set_language("ja")
+    lines = wrap_text("1600年9月15日、霧に包まれた関ヶ原に、東西あわせて十数万の兵が集まりました。", RichFont("serif_bold", 46), 1650)
+    assert len(lines) == 2 and lines[0].endswith("、")
+    set_language("vi")
+
+
+def test_input_language_tag():
+    from core.input_parser import parse
+    assert parse("Trận Hastings năm 1066 (8p, en)")["language"] == "en"
+    assert parse("Trận Sekigahara năm 1600 (12p tiếng Nhật)")["language"] == "ja"
+    assert parse("Trận Hansan năm 1592 [ko]")["language"] == "ko"
+
+
+def test_quality_presets():
+    from render.renderer import resolve_quality
+    c = resolve_quality({"crf": None, "preset": None, "sharpen": None}, quality="cao")
+    assert tuple(c["size"]) == (2560, 1440) and c["crf"] == 18
+    assert tuple(resolve_quality({}, draft=True)["size"]) == (960, 540)
+
+
 if __name__ == "__main__":
     n = 0
     for k, fn in list(globals().items()):

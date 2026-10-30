@@ -27,7 +27,9 @@ FEATURES = ["river", "coast_right", "coast_left", "coast_top", "coast_bottom", "
 
 
 class MapVisual:
-    def __init__(self, spec, OW, OH, fps, dur, title="", seed=4, grain=5.0, subtitles=False):
+    def __init__(self, spec, OW, OH, fps, dur, title="", seed=4, grain=5.0, subtitles=False, lang="vi"):
+        from core import lang as L
+        self.ui = lambda key: L.ui(lang, key)
         self.spec = spec or {}
         self.subtitles = subtitles   # có phụ đề -> đưa chú thích lên trên vùng phụ đề
         self._placed = {}
@@ -137,11 +139,11 @@ class MapVisual:
         d.rectangle([34 * k, 34 * k, OW - 34 * k, OH - 34 * k], outline=(110, 80, 45), width=max(1, int(2 * k)))
         if self.title:
             RichFont("serif_bold", 48 * k).draw(d, (80 * k, 70 * k), self.title, pal["ink"])
-        RichFont("serif_italic", 30 * k).draw(d, (82 * k, 136 * k), N("Sơ đồ minh họa, không theo tỉ lệ"), pal["ink_light"])
+        RichFont("serif_italic", 30 * k).draw(d, (82 * k, 136 * k), N(self.ui("map_note")), pal["ink_light"])
         cx, cy = OW - 140 * k, 140 * k
         d.polygon([(cx, cy - 60 * k), (cx + 14 * k, cy), (cx, cy + 60 * k), (cx - 14 * k, cy)], fill=(110, 80, 45))
         d.ellipse([cx - 34 * k, cy - 34 * k, cx + 34 * k, cy + 34 * k], outline=(110, 80, 45), width=max(1, int(2 * k)))
-        RichFont("serif_bold", 30 * k).draw(d, (cx - 10 * k, cy - 108 * k), "B", pal["ink"])
+        RichFont("serif_bold", 30 * k).draw(d, (cx - 10 * k, cy - 108 * k), self.ui("north"), pal["ink"])
         legend = self.spec.get("legend") or {}
         if not legend:
             for a in self.spec.get("arrows", []):
@@ -157,7 +159,7 @@ class MapVisual:
                 col = pal["enemy" if side == "enemy" else "ally"]
                 d.line([(x, y + 18 * k), (x + 60 * k, y + 18 * k)], fill=col, width=max(2, int(10 * k)))
                 d.polygon([(x + 60 * k, y + 6 * k), (x + 80 * k, y + 18 * k), (x + 60 * k, y + 30 * k)], fill=col)
-                RichFont("serif", 30 * k).draw(d, (x + 96 * k, y), N(f"{'Đỏ' if side == 'enemy' else 'Xanh'}: {legend[side]}"), pal["ink"])
+                RichFont("serif", 30 * k).draw(d, (x + 96 * k, y), N(f"{self.ui('red') if side == 'enemy' else self.ui('blue')}: {legend[side]}"), pal["ink"])
                 y += 44 * k
         a = np.asarray(im).astype(np.float32) * vignette(OW, OH, 0.6)
         return Image.fromarray(a.clip(0, 255).astype(np.uint8)).convert("RGBA")

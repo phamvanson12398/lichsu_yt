@@ -90,6 +90,13 @@ def _is_roman(s):
     return bool(re.fullmatch(r"M{0,3}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})", s)) and s != ""
 
 
+def pronunciation_files(root, lang="vi"):
+    """pronunciation.json (tiếng Việt) hoặc pronunciation.<lang>.json (en / ko / ja)."""
+    from core import lang as L
+    lc = L.code(lang)
+    return os.path.join(root, "pronunciation.json" if lc == "vi" else f"pronunciation.{lc}.json")
+
+
 def load_pronunciation(*paths):
     d = {}
     for p in paths:
@@ -106,11 +113,19 @@ def apply_pronunciation(text, pron):
     return text
 
 
-def normalize(text, pron=None):
-    """Văn bản để đọc (không dùng để hiển thị)."""
+def normalize(text, pron=None, lang="vi"):
+    """Văn bản để đọc (không dùng để hiển thị), theo ngôn ngữ lời kể vi | en | ko | ja."""
+    from core import lang as L
     t = _nfc(text)
     if pron:
         t = apply_pronunciation(t, pron)
+    lc = L.code(lang)
+    if lc == "en":
+        return L.normalize_en(t)
+    if lc == "ko":
+        return L.normalize_ko(t)
+    if lc == "ja":
+        return L.normalize_ja(t)
     for pat, rep in ABBR.items():
         t = re.sub(pat, rep, t)
     # số La Mã sau "thế kỷ", "đời", "vua", "chương", "phần", hoặc tên vua châu Âu (Henry VIII)
@@ -134,8 +149,11 @@ def normalize(text, pron=None):
     return t
 
 
-def split_sentences(text, max_syllables=55):
+def split_sentences(text, max_syllables=55, lang="vi"):
     """Tách đoạn thành câu; câu quá dài (> ~22 giây) cắt tiếp ở dấu phẩy / chấm phẩy."""
+    from core import lang as L
+    if L.code(lang) != "vi":
+        return L.split_sentences(text, lang)
     text = _nfc(text).strip()
     parts = re.split(r"(?<=[.!?…])\s+(?=[\"“(\[A-ZÀ-Ỹ0-9])", text)
     out = []

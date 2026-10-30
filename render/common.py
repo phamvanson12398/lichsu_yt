@@ -43,11 +43,29 @@ _FONT_CANDIDATES = {
     "serif_italic": ["NotoSerif-Italic.ttf", "timesi.ttf", "DejaVuSerif-Italic.ttf"],
     "sans": ["NotoSans-Regular.ttf", "arial.ttf", "DejaVuSans.ttf"],
     "sans_bold": ["NotoSans-Bold.ttf", "arialbd.ttf", "DejaVuSans-Bold.ttf"],
-    # chữ Hàn / Nhật / Hán (chỉ dùng cho đoạn chữ có ký tự CJK)
-    "cjk": ["NotoSerifCJK-Bold.ttc", "NotoSerifCJKjp-Bold.otf", "NotoSansCJK-Bold.ttc", "NotoSerifKR-Bold.ttf",
-            "NotoSerifJP-Bold.ttf", "malgunbd.ttf", "malgun.ttf", "YuGothB.ttc", "msgothic.ttc", "msyhbd.ttc",
-            "msyh.ttc", "batang.ttc", "NotoSansCJK-Regular.ttc", "wqy-zenhei.ttc"],
+    # chữ Hàn / Nhật / Hán: font riêng từng nước (Hán tự hiển thị theo ngôn ngữ video)
+    "cjk_ko": ["NotoSerifKR-Bold.ttf", "NotoSerifCJK-Bold.ttc", "NotoSerifCJKkr-Bold.otf", "malgunbd.ttf", "malgun.ttf",
+               "batang.ttc", "AppleSDGothicNeo.ttc", "NotoSansCJK-Bold.ttc", "wqy-zenhei.ttc"],
+    "cjk_ko_reg": ["NotoSerifKR-Regular.ttf", "NotoSerifCJK-Regular.ttc", "malgun.ttf", "batang.ttc", "NotoSansCJK-Regular.ttc",
+                   "wqy-zenhei.ttc"],
+    "cjk_ja": ["NotoSerifJP-Bold.ttf", "NotoSerifCJK-Bold.ttc", "NotoSerifCJKjp-Bold.otf", "YuMinchoB.ttc", "YuGothB.ttc",
+               "msmincho.ttc", "msgothic.ttc", "Hiragino Mincho ProN W6.ttc", "NotoSansCJK-Bold.ttc", "wqy-zenhei.ttc"],
+    "cjk_ja_reg": ["NotoSerifJP-Regular.ttf", "NotoSerifCJK-Regular.ttc", "YuMincho.ttc", "yumin.ttf", "msmincho.ttc",
+                   "NotoSansCJK-Regular.ttc", "wqy-zenhei.ttc"],
 }
+_FONT_CANDIDATES["cjk"] = _FONT_CANDIDATES["cjk_ja"] + _FONT_CANDIDATES["cjk_ko"]
+_LANG = {"code": "vi"}
+
+
+def set_language(code):
+    """Ngôn ngữ video (vi | en | ko | ja): quyết định font cho Hán tự và cách xuống dòng."""
+    _LANG["code"] = code or "vi"
+
+
+def get_language():
+    return _LANG["code"]
+
+
 _FONT_DIRS = [os.path.join(ROOT, "fonts"), "C:\\Windows\\Fonts", os.path.expanduser("~/AppData/Local/Microsoft/Windows/Fonts"),
               "/usr/share/fonts/truetype/dejavu", "/usr/share/fonts/opentype/noto", "/usr/share/fonts/truetype/noto",
               "/usr/share/fonts/noto-cjk", "/usr/share/fonts/truetype/wqy", "/System/Library/Fonts", "/Library/Fonts"]
@@ -70,7 +88,7 @@ def font_path(kind):
             p = os.path.join(d, name)
             if os.path.exists(p):
                 return p
-    if kind == "cjk":
+    if kind.startswith("cjk"):
         return None
     raise RuntimeError(f"Không tìm thấy font '{kind}'. Hãy chép file NotoSerif-*.ttf vào thư mục fonts/.")
 
@@ -83,44 +101,65 @@ def font(kind, size):
     return ImageFont.truetype(p, max(6, int(size)))
 
 
-def is_cjk(ch):
+def script_of(ch):
+    """'ko' (Hangul) | 'ja' (kana) | 'han' (Hán tự, dấu câu CJK) | 'lat' (còn lại)."""
     o = ord(ch)
-    return (0x1100 <= o <= 0x11FF or 0x3000 <= o <= 0x30FF or 0x3130 <= o <= 0x318F or 0x3400 <= o <= 0x4DBF
-            or 0x4E00 <= o <= 0x9FFF or 0xAC00 <= o <= 0xD7AF or 0xF900 <= o <= 0xFAFF or 0xFF00 <= o <= 0xFFEF)
+    if 0xAC00 <= o <= 0xD7AF or 0x1100 <= o <= 0x11FF or 0x3130 <= o <= 0x318F:
+        return "ko"
+    if 0x3040 <= o <= 0x30FF or 0x31F0 <= o <= 0x31FF or 0xFF66 <= o <= 0xFF9F:
+        return "ja"
+    if 0x3400 <= o <= 0x4DBF or 0x4E00 <= o <= 0x9FFF or 0xF900 <= o <= 0xFAFF or 0x3000 <= o <= 0x303F or 0xFF00 <= o <= 0xFF65:
+        return "han"
+    return "lat"
+
+
+def is_cjk(ch):
+    return script_of(ch) != "lat"
 
 
 def runs(txt):
-    """Tách chuỗi thành các đoạn Latin/Việt và CJK để vẽ bằng font phù hợp."""
+    """Tách chuỗi thành các đoạn theo loại chữ để vẽ bằng font phù hợp. Hán tự theo ngữ cảnh / ngôn ngữ video."""
+    kinds = [script_of(ch) for ch in txt]
+    if "han" in kinds:
+        if "ja" in kinds:
+            hk = "ja"
+        elif "ko" in kinds:
+            hk = "ko"
+        else:
+            hk = "ko" if get_language() == "ko" else "ja"
+        kinds = [hk if k == "han" else k for k in kinds]
     out = []
-    for ch in txt:
-        c = is_cjk(ch)
-        if out and out[-1][0] == c:
+    for ch, k in zip(txt, kinds):
+        if k == "lat" and ch == " " and out and out[-1][0] != "lat":
+            k = out[-1][0]          # khoảng trắng giữa chữ CJK giữ cùng font
+        if out and out[-1][0] == k:
             out[-1][1] += ch
         else:
-            out.append([c, ch])
+            out.append([k, ch])
     return out
 
 
 class RichFont:
-    """Font Việt + font CJK dự phòng, vẽ chung một baseline."""
+    """Font Latin/Việt + font Hàn + font Nhật, vẽ chung một baseline."""
 
     def __init__(self, kind, size):
         size = max(6, int(round(size)))
         self.main = font(kind, size)
-        self.cjk = font("cjk", size) or self.main
+        bold = kind.endswith("bold") or kind == "serif_bold"
+        self.ko = font("cjk_ko" if bold else "cjk_ko_reg", size) or font("cjk", size) or self.main
+        self.ja = font("cjk_ja" if bold else "cjk_ja_reg", size) or font("cjk", size) or self.main
         self.size = size
 
     def _f(self, c):
-        return self.cjk if c else self.main
+        return self.ko if c == "ko" else self.ja if c == "ja" else self.main
 
     def length(self, txt):
         d = _DUMMY
         return sum(d.textlength(t, font=self._f(c)) for c, t in runs(txt))
 
     def metrics(self):
-        a1, d1 = self.main.getmetrics()
-        a2, d2 = self.cjk.getmetrics()
-        return max(a1, a2), max(d1, d2)
+        ms = [f.getmetrics() for f in {id(f): f for f in (self.main, self.ko, self.ja)}.values()]
+        return max(m[0] for m in ms), max(m[1] for m in ms)
 
     def draw(self, d, xy, txt, fill):
         """xy = góc trên trái của dòng (theo ascent chung)."""
@@ -161,12 +200,25 @@ def with_alpha(im, a):
     return Image.fromarray(arr)
 
 
+NO_LINE_START = set("、。，．・：；？！ー）」』】〕〉》”’ゃゅょぁぃぅぇぉっャュョァィゥェォッ…,.!?:;)]")
+
+
+def tokens(txt):
+    """Đơn vị để xuống dòng / hiện từng từ: theo khoảng trắng; tiếng Nhật (không khoảng trắng) theo từng ký tự."""
+    txt = N(txt)
+    if " " in txt.strip() and not (get_language() == "ja" and sum(1 for c in txt if is_cjk(c)) > len(txt) * 0.5):
+        return [w for w in txt.split()], " "
+    return list(txt.replace(" ", "")), ""
+
+
 def wrap_text(txt, rf, max_w):
-    words = N(txt).split()
+    toks, sep = tokens(txt)
+    if not sep and rf.length(txt) > max_w and rf.length(txt) <= 2 * max_w:
+        return _split_two(toks, rf, max_w)
     lines, cur = [], ""
-    for w in words:
-        t = (cur + " " + w).strip()
-        if rf.length(t) <= max_w or not cur:
+    for w in toks:
+        t = (cur + sep + w) if cur else w
+        if rf.length(t) <= max_w or not cur or (not sep and w in NO_LINE_START):
             cur = t
         else:
             lines.append(cur)
@@ -174,6 +226,49 @@ def wrap_text(txt, rf, max_w):
     if cur:
         lines.append(cur)
     return lines
+
+
+def _split_two(chars, rf, max_w):
+    """Chữ không khoảng trắng (tiếng Nhật): chia 2 dòng cân nhau, ưu tiên ngắt sau dấu câu、。 và sau chữ kana."""
+    s = "".join(chars)
+    total = rf.length(s)
+    best, best_i = None, len(s) // 2
+    for i in range(1, len(s)):
+        if s[i] in NO_LINE_START:
+            continue
+        w1 = rf.length(s[:i])
+        if w1 > max_w or total - w1 > max_w:
+            continue
+        pen = abs(total - 2 * w1) / total
+        prev = s[i - 1]
+        if prev in "、。！？」』":
+            pen -= 0.6
+        elif script_of(prev) == "ja" and script_of(s[i]) == "han":
+            pen -= 0.3           # ngắt trước Hán tự (đầu từ mới) tự nhiên hơn
+        elif script_of(prev) == "han" and script_of(s[i]) == "han":
+            pen += 0.2           # tránh cắt đôi một từ Hán (tên người, địa danh)
+        if best is None or pen < best:
+            best, best_i = pen, i
+    return [s[:best_i], s[best_i:]]
+
+
+def phrase_chunks(txt, n=5):
+    """Chia câu tiếng Nhật thành cụm ~n ký tự (cắt sau dấu câu) cho hiệu ứng hiện từng từ."""
+    toks, sep = tokens(txt)
+    if sep:
+        return toks
+    out, cur = [], ""
+    for ch in toks:
+        cur += ch
+        if ch in "、。！？」』" or (len(cur) >= n and ch not in NO_LINE_START):
+            out.append(cur)
+            cur = ""
+    if cur:
+        if out and len(cur) <= 1:
+            out[-1] += cur
+        else:
+            out.append(cur)
+    return out
 
 
 # ---------------------------------------------------------------- drawing helpers

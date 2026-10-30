@@ -42,6 +42,16 @@ class App:
         self.offline = tk.BooleanVar(value=False)
         opts = ttk.Frame(f)
         opts.grid(row=4, column=0, columnspan=4, sticky="w", pady=6)
+        ttk.Label(opts, text="Lời kể:").pack(side="left")
+        self.lang = ttk.Combobox(opts, width=14, state="readonly",
+                                 values=["vi - Tiếng Việt", "en - English", "ko - 한국어", "ja - 日本語"])
+        self.lang.set("vi - Tiếng Việt")
+        self.lang.pack(side="left", padx=(2, 10))
+        ttk.Label(opts, text="Độ nét:").pack(side="left")
+        self.quality = ttk.Combobox(opts, width=16, state="readonly",
+                                    values=["chuan - 1080p", "cao - 1440p", "4k - 2160p"])
+        self.quality.set("chuan - 1080p")
+        self.quality.pack(side="left", padx=(2, 10))
         ttk.Checkbutton(opts, text="Chạy hết không dừng duyệt", variable=self.auto).pack(side="left")
         ttk.Checkbutton(opts, text="Chế độ nháp (nhanh, 960x540)", variable=self.draft).pack(side="left", padx=10)
         ttk.Checkbutton(opts, text="Không dùng AI (lập plan theo mẫu)", variable=self.offline).pack(side="left")
@@ -85,7 +95,7 @@ class App:
         self.proj["values"] = self.P.list_projects()
 
     def flags(self):
-        a = []
+        a = ["--quality", self.quality.get().split(" ")[0]]
         if self.auto.get():
             a.append("--auto")
         if self.draft.get():
@@ -138,7 +148,7 @@ class App:
             return
         from core.input_parser import slugify
         self.proj.set(slugify(t))
-        self.run_cmd([t] + self.flags())
+        self.run_cmd([t, "--lang", self.lang.get().split(" ")[0]] + self.flags())
 
     def cont(self):
         p = self.cur()
@@ -163,7 +173,7 @@ class App:
     def render(self):
         p = self.cur()
         if p:
-            self.run_cmd(["render", p] + (["--draft"] if self.draft.get() else []))
+            self.run_cmd(["render", p, "--quality", self.quality.get().split(" ")[0]] + (["--draft"] if self.draft.get() else []))
 
     def open_file(self, name):
         p = self.cur()
@@ -186,7 +196,7 @@ class App:
         ok = messagebox.askyesno("Xác nhận", "Đây là giọng của tôi hoặc tôi đã được người này đồng ý?")
         if not ok:
             return
-        args = ["voice", "add", name, "--file", f, "--dong-y", "--auto"] + (["--text", text] if text else [])
+        args = ["voice", "add", name, "--file", f, "--dong-y", "--auto", "--lang", self.lang.get().split(" ")[0]] + (["--text", text] if text else [])
         self.run_cmd(args)
 
 

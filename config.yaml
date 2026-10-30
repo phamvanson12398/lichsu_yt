@@ -18,9 +18,11 @@ agy:
   use_json_schema: true
 
 # ---- Nội dung
-narration_language: tiếng Việt
+# Ngôn ngữ lời kể (lời đọc, phụ đề, chữ trên hình, youtube.txt): vi (tiếng Việt) | en (tiếng Anh) | ko (tiếng Hàn) | ja (tiếng Nhật)
+# Đổi riêng cho từng video bằng dòng chủ đề: "Trận Hastings năm 1066 (8p, en)" hoặc lệnh: --lang ja
+narration_language: vi
 default_minutes: 10       # khi dòng chủ đề không ghi (10p)
-words_per_minute: 140     # 130–150 chữ / phút
+words_per_minute: 140     # tiếng Việt 130–150 chữ / phút (en 150 từ, ko / ja 300 ký tự mỗi phút — tự chọn)
 review_after: [script, plan]   # dừng để duyệt sau bước nào (xoá hết = không dừng)
 
 # ---- Giọng đọc OmniVoice
@@ -42,12 +44,16 @@ kenh_kiem_tien: false
 
 # ---- Dựng hình
 render:
-  size: [1920, 1080]
+  # Chất lượng / độ nét: nhap (960x540, xem nhanh) | chuan (1920x1080) | cao (2560x1440) | 4k (3840x2160)
+  # YouTube nén video tải lên 1440p / 4K tốt hơn hẳn -> người xem 1080p cũng thấy nét hơn. Đổi tạm bằng: --quality cao
+  quality: chuan
   fps: 30
-  crf: 19                 # 18–20: càng nhỏ càng nét, file càng nặng
-  preset: veryfast
-  supersample: 2.0        # vẽ ở 2x rồi thu nhỏ để nét mịn
-  grain: 7.0              # hạt nhiễu (tĩnh như demo)
+  crf: null               # để trống = theo mức chất lượng (18). Số nhỏ hơn = nét hơn, file nặng hơn
+  preset: null            # để trống = medium (nén kỹ, nét). veryfast = nhanh hơn, kém nét hơn chút
+  tune: animation         # tối ưu cho tranh phẳng nhiều mảng màu
+  sharpen: null           # làm nét nhẹ (0 = tắt, 0.2–0.6). Để trống = theo mức chất lượng
+  supersample: 2.0        # vẽ ở 2x rồi thu nhỏ để nét mịn, không răng cưa
+  grain: 4.5              # hạt nhiễu (tĩnh như demo). Giảm = hình trong, nét hơn
   grain_animated: false   # true = hạt nhiễu động kiểu phim (file nặng gấp ~4 lần)
   fade: 0.4               # mờ qua đen giữa các cảnh (giây)
   burn_subtitles: true    # in phụ đề lên hình

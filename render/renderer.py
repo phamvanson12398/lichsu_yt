@@ -21,7 +21,7 @@ import time
 import numpy as np
 from PIL import Image, ImageDraw, ImageEnhance
 
-from render.common import N, ROOT, RichFont, grain_frames, text_layer, vignette
+from render.common import N, ROOT, RichFont, grain_frames, set_language, text_layer, vignette
 from render.map_anim import MapVisual
 from render.scene import SceneVisual
 from render.text_fx import Subtitles, TextFX
@@ -47,10 +47,10 @@ def default_mood(i, n):
     return "ket_thuc"
 
 
-def estimate_speech(text, rate=2.6):
-    """Ước lượng thời lượng đọc (giây) khi chưa có giọng: ~2.6 âm tiết/giây (~150 từ/phút)."""
-    syl = len(N(text).split())
-    return max(1.2, syl / rate)
+def estimate_speech(text, lang="vi"):
+    """Ước lượng thời lượng đọc (giây) khi chưa có giọng, theo tốc độ đọc của từng ngôn ngữ."""
+    from core import lang as L
+    return L.speech_seconds(N(text), lang)
 
 
 def build_timeline(plan, timings=None, fps=30):
@@ -68,7 +68,8 @@ def build_timeline(plan, timings=None, fps=30):
                 sents = tm["sentences"]
             else:
                 from core.voice.text_norm import split_sentences
-                sents = [{"text": s, "file": None, "dur": estimate_speech(s)} for s in split_sentences(sc["narration"])]
+                lg = plan.get("language", "vi")
+                sents = [{"text": s, "file": None, "dur": estimate_speech(s, lg)} for s in split_sentences(sc["narration"], lang=lg)]
             lt = float(sc.get("voice_start", LEAD_IN))
             for s in sents:
                 cues.append((lt, lt + s["dur"], s.get("display") or s["text"]))
@@ -127,6 +128,7 @@ def make_visual(sc, plan, dur, OW, OH, fps, cfg, seed):
     typ = sc.get("type", "narration")
     if typ == "map":
         return MapVisual(sc.get("map", {}), OW, OH, fps, dur, title=sc.get("map", {}).get("title") or plan.get("title", ""), seed=seed,
+                         lang=plan.get("language", "vi"),
                          subtitles=bool(sc.get("narration")) and cfg.get("burn_subtitles", True))
     if sc.get("scene"):
         return SceneVisual(sc["scene"], OW, OH, fps, dur, palette=pal_name, country=country,
@@ -140,6 +142,7 @@ class SceneRenderer:
 
     def __init__(self, entry, plan, OW, OH, fps, cfg):
         sc = entry["scene"]
+        set_language(plan.get("language", "vi"))
         self.sc, self.entry, self.OW, self.OH, self.fps, self.cfg = sc, entry, OW, OH, fps, cfg
         dur = entry["dur"]
         self.dur = dur
@@ -248,11 +251,40 @@ class _MapEv:
 
 
 # ======================================================================== encoding
-def ffmpeg_encoder(path, OW, OH, fps, crf=19, preset="veryfast"):
+QUALITY = {
+    # tên: kích thước, CRF, preset x264. YouTube cấp bitrate cao hơn (VP9 / AV1) cho video tải lên 1440p, 4K
+    # -> người xem ở 1080p cũng thấy nét hơn.
+    "nhap": {"size": (960, 540), "crf": 23, "preset": "ultrafast", "sharpen": 0.0},
+    "chuan": {"size": (1920, 1080), "crf": 18, "preset": "medium", "sharpen": 0.35},
+    "cao": {"size": (2560, 1440), "crf": 18, "preset": "medium", "sharpen": 0.3},
+    "4k": {"size": (3840, 2160), "crf": 18, "preset": "medium", "sharpen": 0.25},
+}
+
+
+def x264_args(cfg):
+    """Tham số nén chung cho mọi cảnh (phải giống nhau để ghép -c copy)."""
+    a = ["-c:v", "libx264", "-preset", cfg.get("preset", "medium"), "-crf", str(cfg.get("crf", 18)),
+         "-profile:v", "high", "-pix_fmt", "yuv420p"]
+    if cfg.get("tune", "animation"):
+        a += ["-tune", cfg.get("tune", "animation")]   # hợp với tranh phẳng nhiều mảng màu
+    return a
+
+
+def video_filter(cfg, extra=None):
+    f = []
+    if extra:
+        f.append(extra)
+    sh = float(cfg.get("sharpen", 0) or 0)
+    if sh > 0:
+        f.append(f"unsharp=5:5:{sh}:5:5:0")        # làm nét nhẹ kênh sáng, không đụng màu
+    f.append("format=yuv420p")
+    return ["-vf", ",".join(f)]
+
+
+def ffmpeg_encoder(path, OW, OH, fps, cfg):
     return subprocess.Popen(["ffmpeg", "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{OW}x{OH}",
-                             "-r", str(fps), "-i", "-", "-c:v", "libx264", "-preset", preset, "-crf", str(crf),
-                             "-pix_fmt", "yuv420p", "-r", str(fps), "-video_track_timescale", str(fps * 512),
-                             "-f", "mp4", path], stdin=subprocess.PIPE)
+                             "-r", str(fps), "-i", "-"] + video_filter(cfg) + x264_args(cfg)
+                            + ["-r", str(fps), "-video_track_timescale", str(fps * 512), "-f", "mp4", path], stdin=subprocess.PIPE)
 
 
 def code_version():
@@ -269,8 +301,9 @@ def code_version():
 
 def scene_hash(entry, plan, OW, OH, fps, cfg, ver):
     key = {"scene": entry["scene"], "dur": entry["dur"], "cues": entry["cues"], "OW": OW, "OH": OH, "fps": fps,
-           "pal": plan.get("palette"), "country": plan.get("country"), "title": plan.get("title"),
-           "cfg": {k: cfg.get(k) for k in ("supersample", "grain", "grain_animated", "burn_subtitles", "subtitle_size", "fade", "crf")}, "ver": ver}
+           "pal": plan.get("palette"), "country": plan.get("country"), "title": plan.get("title"), "lang": plan.get("language"),
+           "cfg": {k: cfg.get(k) for k in ("supersample", "grain", "grain_animated", "burn_subtitles", "subtitle_size", "fade", "crf",
+                                          "preset", "tune", "sharpen")}, "ver": ver}
     return hashlib.sha1(json.dumps(key, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()[:16]
 
 
@@ -286,16 +319,15 @@ def render_scene_job(job):
         Image.fromarray(rnd.frame(entry["dur"] / 2)).save(png)
         f = cfg.get("fade", 0.4) / 2
         d = entry["dur"]
-        vf = f"fade=in:st=0:d={f},fade=out:st={max(0, d - f)}:d={f},format=yuv420p"
+        vf = f"fade=in:st=0:d={f},fade=out:st={max(0, d - f)}:d={f}"
         r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-loop", "1", "-framerate", str(fps), "-i", png, "-frames:v",
-                            str(entry["frames"]), "-vf", vf, "-c:v", "libx264", "-preset", cfg.get("preset", "veryfast"),
-                            "-crf", str(cfg.get("crf", 19)), "-pix_fmt", "yuv420p", "-r", str(fps),
-                            "-video_track_timescale", str(fps * 512), "-f", "mp4", tmp])
+                            str(entry["frames"])] + video_filter(cfg, vf) + x264_args(cfg)
+                           + ["-r", str(fps), "-video_track_timescale", str(fps * 512), "-f", "mp4", tmp])
         os.remove(png)
         if r.returncode != 0:
             raise RuntimeError(f"FFmpeg lỗi khi dựng cảnh tĩnh {entry['scene'].get('id')}")
     else:
-        p = ffmpeg_encoder(tmp, OW, OH, fps, cfg.get("crf", 19), cfg.get("preset", "veryfast"))
+        p = ffmpeg_encoder(tmp, OW, OH, fps, cfg)
         try:
             for i in range(entry["frames"]):
                 p.stdin.write(rnd.frame(i / fps).tobytes())
@@ -307,14 +339,29 @@ def render_scene_job(job):
     return out, time.time() - t0
 
 
-def render_video(plan, timeline, proj_dir, cfg, draft=False, log=print, only=None):
+def resolve_quality(cfg, draft=False, quality=None):
+    """Gộp mức chất lượng (nhap | chuan | cao | 4k) vào cấu hình dựng. Giá trị ghi rõ trong config vẫn được ưu tiên."""
+    q = "nhap" if draft else (quality or cfg.get("quality") or "chuan")
+    if q not in QUALITY:
+        raise ValueError(f"Mức chất lượng '{q}' không có. Chọn: {', '.join(QUALITY)}")
+    out = dict(cfg)
+    preset = QUALITY[q]
+    for k, v in preset.items():
+        if k == "size" or q == "nhap" or out.get(k) is None:
+            out[k] = v
+    out["quality"] = q
+    if q in ("cao", "4k") and not out.get("workers"):
+        out["workers"] = max(1, min((os.cpu_count() or 2) - 1, 3 if q == "cao" else 2))
+    return out
+
+
+def render_video(plan, timeline, proj_dir, cfg, draft=False, log=print, only=None, quality=None):
     """Dựng mọi cảnh (có cache, song song) rồi ghép thành silent.mp4. Trả về đường dẫn silent.mp4."""
-    OW, OH = (960, 540) if draft else tuple(cfg.get("size", (1920, 1080)))
+    cfg = resolve_quality(cfg, draft, quality)
+    OW, OH = tuple(cfg["size"])
     fps = int(cfg.get("fps", 30))
-    if draft:
-        cfg = dict(cfg, supersample=min(2.0, cfg.get("supersample", 2.0)), preset="ultrafast", crf=23)
     ver = code_version()
-    cdir = os.path.join(proj_dir, "cache", "scenes" + ("_draft" if draft else ""))
+    cdir = os.path.join(proj_dir, "cache", "scenes_" + cfg["quality"])
     os.makedirs(cdir, exist_ok=True)
     jobs, outs = [], []
     for e in timeline:
@@ -325,7 +372,7 @@ def render_video(plan, timeline, proj_dir, cfg, draft=False, log=print, only=Non
         if os.path.exists(out) or (only and sid not in only):
             continue
         jobs.append((e, plan, OW, OH, fps, cfg, out))
-    log(f"Dựng {len(jobs)} cảnh mới / {len(timeline)} cảnh (còn lại lấy từ cache) — {OW}x{OH}{' (nháp)' if draft else ''}")
+    log(f"Dựng {len(jobs)} cảnh mới / {len(timeline)} cảnh (còn lại lấy từ cache) — {OW}x{OH}, chất lượng '{cfg['quality']}'")
     workers = max(1, int(cfg.get("workers") or max(1, (os.cpu_count() or 2) - 1)))
     t0 = time.time()
     if jobs:
@@ -351,7 +398,7 @@ def render_video(plan, timeline, proj_dir, cfg, draft=False, log=print, only=Non
     with open(lst, "w", encoding="utf-8") as f:
         for o in outs:
             f.write("file '" + os.path.abspath(o).replace("\\", "/").replace("'", "'\\''") + "'\n")
-    silent = os.path.join(proj_dir, "cache", "silent" + ("_draft" if draft else "") + ".mp4")
+    silent = os.path.join(proj_dir, "cache", f"silent_{cfg['quality']}.mp4")
     r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", lst, "-c", "copy", silent + ".tmp.mp4"])
     if r.returncode != 0:
         raise RuntimeError("FFmpeg không ghép được các cảnh (concat).")

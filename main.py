@@ -2,6 +2,8 @@
 
   python main.py "Trận Bạch Đằng năm 938 (10p)"            chạy hết, dừng ở bước duyệt
   python main.py "Trận Hastings năm 1066 (8p)" --auto      chạy hết không dừng
+  python main.py "Trận Hastings năm 1066 (8p, en)"         lời kể tiếng Anh (en | ko | ja | vi), hoặc thêm --lang en
+  python main.py render bach_dang_938 --quality cao         dựng nét hơn: nhap | chuan (1080p) | cao (1440p) | 4k
   python main.py continue bach_dang_938                    chạy tiếp sau khi duyệt / sửa
   python main.py preview  projects/bach_dang_938           ảnh xem trước từng cảnh
   python main.py render   projects/bach_dang_938 [--draft] dựng lại video
@@ -60,8 +62,9 @@ def cmd_check(cfg):
     except RuntimeError as e:
         log(f"  ✖ {e}")
         ok = False
-    cjk = font_path("cjk")
-    log(f"  {'✔' if cjk else '•'} font Hàn/Nhật/Hán: {cjk or 'chưa có (chỉ cần nếu hiện chữ gốc Hàn/Nhật; chạy: python main.py fonts)'}")
+    for k_, lab in (("cjk_ko", "font tiếng Hàn"), ("cjk_ja", "font tiếng Nhật")):
+        fp = font_path(k_)
+        log(f"  {'✔' if fp else '✖'} {lab}: {fp or 'chưa có — chạy: python main.py fonts'}")
     for name, label in (("claude", "Claude Code CLI"), ("agy", "Antigravity CLI")):
         p = which(name)
         if p:
@@ -100,15 +103,16 @@ def cmd_voice(args, cfg):
         for v in vs:
             mark = " (mặc định)" if d.get("default") == v["_name"] else ""
             cs = [c for c, n in d.get("by_country", {}).items() if n == v["_name"]]
-            log(f"- {v['_name']}{mark}{' [mặc định cho ' + ', '.join(cs) + ']' if cs else ''} — {v.get('loai')} — {v.get('mo_ta', '')}"
+            log(f"- {v['_name']}{mark}{' [mặc định cho ' + ', '.join(cs) + ']' if cs else ''} — {v.get('loai')} — "
+                f"ngôn ngữ {v.get('ngon_ngu', 'vi')} — {v.get('mo_ta', '')}"
                 f"{' — instruct: ' + v['instruct'] if v.get('instruct') else ''}")
         return
     if sub == "play":
         VL.play(os.path.join(VL.VOICES_DIR, rest[0], "sample.wav"))
         return
     if sub == "default":
-        VL.set_default(rest[0], args.country)
-        log(f"✔ Đặt '{rest[0]}' làm giọng mặc định{' cho ' + args.country if args.country else ''}")
+        VL.set_default(rest[0], args.country, args.lang)
+        log(f"✔ Đặt '{rest[0]}' làm giọng mặc định{' cho ' + (args.lang or args.country) if (args.lang or args.country) else ''}")
         return
     if sub == "delete":
         if input(f"Xoá giọng '{rest[0]}'? (co / khong): ").strip().lower() in ("co", "có", "y", "yes", "c"):
@@ -118,12 +122,13 @@ def cmd_voice(args, cfg):
     if sub == "add":
         if not args.file:
             raise SystemExit("Cần --file <đường dẫn file mp3/m4a/wav>")
-        VL.add_clone(rest[0], args.file, args.text, consent=args.dong_y, cfg=cfg, log=log, interactive=not args.auto)
+        VL.add_clone(rest[0], args.file, args.text, consent=args.dong_y, cfg=cfg, log=log, interactive=not args.auto,
+                     lang=args.lang or "vi")
         return
     if sub == "design":
         if not args.instruct:
             raise SystemExit('Cần --instruct "male, middle-aged, low pitch"')
-        cands = VL.design_candidates([args.instruct] * 3, cfg, log)
+        cands = VL.design_candidates([args.instruct] * 3, cfg, log, lang=args.lang or "vi")
         best = VL.choose(cands, auto=args.auto, log=log)
         VL.save_design(rest[0], best)
         log(f"✔ Đã lưu giọng thiết kế '{rest[0]}'")
@@ -132,11 +137,11 @@ def cmd_voice(args, cfg):
         from core.llm.base import LLMError, Router
         topic = " ".join(rest) or "video lịch sử"
         try:
-            ins = VL.suggest_instructs(Router(cfg, log=log), topic)
+            ins = VL.suggest_instructs(Router(cfg, log=log), topic, lang=args.lang or "vi")
         except LLMError as e:
             log(f"⚠️  {e} — dùng mô tả mặc định")
             ins = VL.fallback_instructs()
-        cands = VL.design_candidates(ins, cfg, log)
+        cands = VL.design_candidates(ins, cfg, log, lang=args.lang or "vi")
         best = VL.choose(cands, auto=args.auto, log=log)
         from core.input_parser import slugify
         name = args.name or ("thiet_ke_" + slugify(topic))
@@ -210,6 +215,8 @@ def main(argv=None):
     ap.add_argument("--draft", action="store_true", help="chế độ nháp 960x540, giọng nhanh")
     ap.add_argument("--offline", action="store_true", help="không gọi AI (lập plan theo mẫu)")
     ap.add_argument("--voice", help="tên giọng dùng cho video")
+    ap.add_argument("--lang", help="ngôn ngữ lời kể: vi | en | ko | ja")
+    ap.add_argument("--quality", help="độ nét: nhap | chuan | cao (1440p) | 4k")
     ap.add_argument("--project", help="tên thư mục dự án")
     ap.add_argument("--file")
     ap.add_argument("--ref")
@@ -231,13 +238,14 @@ def main(argv=None):
         elif c == "check":
             cmd_check(cfg)
         elif c == "demo":
-            P.make_demo(cfg, log, draft=args.draft)
+            P.make_demo(cfg, log, draft=args.draft, quality=args.quality)
         elif c == "list":
             for p in P.list_projects():
                 st = P.Project(p).state
                 log(f"- {p}: đã xong {', '.join(st['done'])}")
         elif c == "continue":
-            P.run(_proj(args.rest[0]), cfg, log, auto=args.auto, draft=args.draft, offline=args.offline, voice_name=args.voice)
+            P.run(_proj(args.rest[0]), cfg, log, auto=args.auto, draft=args.draft, offline=args.offline, voice_name=args.voice,
+                  quality=args.quality)
         elif c == "script":
             from core.llm.base import Router
             proj = _proj(args.rest[0])
@@ -264,20 +272,21 @@ def main(argv=None):
         elif c == "preview":
             P.step_preview(_proj(args.rest[0]), cfg, log)
         elif c == "render":
-            P.step_render(_proj(args.rest[0]), cfg, log, draft=args.draft)
+            P.step_render(_proj(args.rest[0]), cfg, log, draft=args.draft, quality=args.quality)
         elif c == "voice":
             cmd_voice(args, cfg)
         elif c == "voice-save":
             from core.voice import voice_library as VL
-            VL.add_clone(args.rest[0], args.ref or args.file, args.text, consent=args.dong_y, cfg=cfg, log=log, interactive=not args.auto)
+            VL.add_clone(args.rest[0], args.ref or args.file, args.text, consent=args.dong_y, cfg=cfg, log=log, interactive=not args.auto,
+                         lang=args.lang or "vi")
         elif c == "component":
             cmd_component(args, cfg)
         elif c == "fonts":
             cmd_fonts()
         else:
             line = " ".join([c] + args.rest)
-            proj = P.new_project(line, cfg, log, name=args.project)
-            P.run(proj, cfg, log, auto=args.auto, draft=args.draft, offline=args.offline, voice_name=args.voice)
+            proj = P.new_project(line, cfg, log, name=args.project, lang=args.lang)
+            P.run(proj, cfg, log, auto=args.auto, draft=args.draft, offline=args.offline, voice_name=args.voice, quality=args.quality)
     except KeyboardInterrupt:
         log("\nĐã dừng.")
         return 130

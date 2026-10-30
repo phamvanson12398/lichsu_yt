@@ -25,6 +25,13 @@ from core.voice.omnivoice_engine import (CONSENT_TEXT, LICENSE_WARNING, OmniVoic
 VOICES_DIR = os.path.join(ROOT, "voices")
 SAMPLE_TEXT = ("Xin chào các bạn, đây là giọng đọc thử cho kênh lịch sử. Năm chín trăm ba mươi tám, "
                "Ngô Quyền đánh tan quân Nam Hán trên sông Bạch Đằng.")
+
+
+def sample_text(lang="vi"):
+    """Câu nghe thử theo ngôn ngữ (đã đổi số thành chữ)."""
+    from core import lang as L
+    from core.voice.text_norm import normalize
+    return SAMPLE_TEXT if L.code(lang) == "vi" else normalize(L.get(lang)["sample"], None, lang)
 DESIGN_ATTRS = {
     "gender": ["male", "female"],
     "age": ["child", "teenager", "young adult", "middle-aged", "elderly"],
@@ -82,10 +89,13 @@ def defaults():
     return {"default": None, "by_country": {}}
 
 
-def set_default(name, country=None):
+def set_default(name, country=None, language=None):
     Voice(name)
     d = defaults()
-    if country:
+    if language:
+        from core import lang as L
+        d.setdefault("by_language", {})[L.code(language)] = name
+    elif country:
         d.setdefault("by_country", {})[country] = name
     else:
         d["default"] = name
@@ -94,11 +104,16 @@ def set_default(name, country=None):
         json.dump(d, f, ensure_ascii=False, indent=2)
 
 
-def pick_voice(plan_voice, country, cfg):
-    """Thứ tự: giọng ghi trong plan.json -> mặc định theo nước -> mặc định kênh -> config. None nếu chưa có giọng nào."""
+def pick_voice(plan_voice, country, cfg, lang="vi"):
+    """Thứ tự: giọng ghi trong plan.json -> mặc định theo ngôn ngữ -> theo nước -> mặc định kênh -> config.
+    Mặc định kênh chỉ dùng nếu cùng ngôn ngữ (hoặc chưa ghi ngôn ngữ). None nếu chưa có giọng phù hợp."""
     d = defaults()
-    for n in (plan_voice, d.get("by_country", {}).get(country), d.get("default"), cfg["voice"].get("default"),
-              (cfg["voice"].get("default_by_country") or {}).get(country)):
+    same_lang = lambda n: (json.load(open(os.path.join(VOICES_DIR, n, "meta.json"), encoding="utf-8")).get("ngon_ngu", "vi") == lang)
+    cands = [plan_voice, d.get("by_language", {}).get(lang), d.get("by_country", {}).get(country)]
+    for n in (d.get("default"), cfg["voice"].get("default"), (cfg["voice"].get("default_by_country") or {}).get(country)):
+        if n and os.path.isdir(os.path.join(VOICES_DIR, n)) and same_lang(n):
+            cands.append(n)
+    for n in cands:
         if n and os.path.isdir(os.path.join(VOICES_DIR, n)):
             return Voice(n)
     return None
@@ -213,7 +228,7 @@ def ask_consent(given=False, ask=input):
 
 
 # ---------------------------------------------------------------- (A) giọng nhân bản
-def add_clone(name, src, ref_text=None, consent=False, cfg=None, log=print, ask=input, interactive=True, mo_ta=""):
+def add_clone(name, src, ref_text=None, consent=False, cfg=None, log=print, ask=input, interactive=True, mo_ta="", lang="vi"):
     if not ask_consent(consent, ask):
         raise RuntimeError("Chưa xác nhận đồng ý. Chỉ nhân bản giọng của chính bạn hoặc người đã đồng ý; không nhân bản giọng người nổi tiếng.")
     if cfg.get("kenh_kiem_tien"):
@@ -230,7 +245,7 @@ def add_clone(name, src, ref_text=None, consent=False, cfg=None, log=print, ask=
     save_wav(tmp_ref, seg, 24000)
     if not ref_text:
         log("Chưa nhập lời mẫu -> nhận dạng tự động (Whisper)...")
-        ref_text = eng.transcribe(tmp_ref) or ""
+        ref_text = eng.transcribe(tmp_ref, lang) or ""
         log(f"   Máy nghe được: \"{ref_text}\"")
         if interactive:
             fix = ask("Sửa lại lời cho đúng (Enter để giữ nguyên): ").strip()
@@ -238,7 +253,7 @@ def add_clone(name, src, ref_text=None, consent=False, cfg=None, log=print, ask=
     if not ref_text:
         raise RuntimeError("Cần lời thoại của đoạn mẫu (--text \"...\").")
     log("Tạo câu nghe thử...")
-    a, sr = eng.generate(SAMPLE_TEXT, ref_audio=tmp_ref, ref_text=ref_text)
+    a, sr = eng.generate(sample_text(lang), ref_audio=tmp_ref, ref_text=ref_text)
     sample = os.path.join(tmpd, "sample.wav")
     save_wav(sample, a, sr)
     if interactive:
@@ -250,14 +265,15 @@ def add_clone(name, src, ref_text=None, consent=False, cfg=None, log=print, ask=
         if ask("Lưu giọng này? (co / khong): ").strip().lower() not in ("co", "có", "c", "y", "yes"):
             raise RuntimeError("Đã huỷ, không lưu giọng.")
     d = _save(name, seg, 24000, ref_text, {"loai": "clone", "instruct": "", "mo_ta": mo_ta or f"Nhân bản từ {os.path.basename(src)}",
-                                           "dong_y": True}, sample=(a, sr))
+                                           "dong_y": True, "ngon_ngu": lang}, sample=(a, sr))
     shutil.rmtree(tmpd, ignore_errors=True)
     log(f"✔ Đã lưu giọng '{name}' vào {d}")
     return d
 
 
 # ---------------------------------------------------------------- (B) giọng thiết kế
-def design_candidates(instructs, cfg, log=print, text=SAMPLE_TEXT):
+def design_candidates(instructs, cfg, log=print, text=None, lang="vi"):
+    text = text or sample_text(lang)
     eng = OmniVoiceEngine.get(cfg["voice"], log)
     tmpd = tempfile.mkdtemp(prefix="hvt_design_")
     out = []
@@ -266,16 +282,17 @@ def design_candidates(instructs, cfg, log=print, text=SAMPLE_TEXT):
         a, sr = eng.generate(text, instruct=ins)
         p = os.path.join(tmpd, f"ung_vien_{i + 1}.wav")
         save_wav(p, a, sr)
-        hyp = eng.transcribe(p) if cfg["voice"].get("qc", True) else None
+        hyp = eng.transcribe(p, lang) if cfg["voice"].get("qc", True) else None
         score = cer(text, hyp) if hyp is not None else None
-        out.append({"instruct": ins, "path": p, "audio": a, "sr": sr, "cer": score})
+        out.append({"instruct": ins, "path": p, "audio": a, "sr": sr, "cer": score, "text": text, "lang": lang})
         log(f"   -> {p}" + (f"  (sai lệch nhận dạng {score:.0%})" if score is not None else ""))
     return out
 
 
-def save_design(name, cand, text=SAMPLE_TEXT, mo_ta=""):
+def save_design(name, cand, text=None, mo_ta=""):
     """Giữ giọng ổn định: lấy chính file nghe thử làm đoạn mẫu (ref) để nhân bản cho cả video."""
-    return _save(name, cand["audio"], cand["sr"], text, {"loai": "design", "instruct": cand["instruct"],
+    text = text or cand.get("text") or SAMPLE_TEXT
+    return _save(name, cand["audio"], cand["sr"], text, {"loai": "design", "instruct": cand["instruct"], "ngon_ngu": cand.get("lang", "vi"),
                                                           "mo_ta": mo_ta or f"Giọng thiết kế: {cand['instruct']}", "dong_y": True},
                  sample=(cand["audio"], cand["sr"]))
 
@@ -300,10 +317,11 @@ def choose(cands, auto=False, ask=input, log=print):
             return cands[int(a) - 1]
 
 
-def suggest_instructs(router, topic, script_hint=""):
+def suggest_instructs(router, topic, script_hint="", lang="vi"):
     """AI đề xuất 3 mô tả giọng chỉ dùng thuộc tính OmniVoice hỗ trợ."""
+    from core import lang as L
     schema = {"type": "object", "required": ["instructs"], "properties": {"instructs": {"type": "array", "items": {"type": "string"}}}}
-    prompt = (f"Đề xuất 3 mô tả giọng đọc khác nhau cho video lịch sử \"{topic}\" (giọng kể chuyện tài liệu, tiếng Việt).\n"
+    prompt = (f"Đề xuất 3 mô tả giọng đọc khác nhau cho video lịch sử \"{topic}\" (giọng kể chuyện tài liệu, {L.get(lang)['name']}).\n"
               f"Gợi ý từ kịch bản: {script_hint}\n"
               f"Mỗi mô tả là chuỗi tiếng Anh ghép bằng dấu phẩy, CHỈ dùng các thuộc tính: giới tính {DESIGN_ATTRS['gender']}, "
               f"tuổi {DESIGN_ATTRS['age']}, cao độ {DESIGN_ATTRS['pitch']}. Ví dụ: \"male, middle-aged, low pitch\".\n"

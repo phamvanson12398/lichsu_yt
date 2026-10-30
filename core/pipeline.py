@@ -75,19 +75,29 @@ def dumps_plan(plan):
     return s + "\n"
 
 
+def _lang_name(code):
+    from core import lang as L
+    return L.get(code)["name"]
+
+
 def list_projects():
     if not os.path.isdir(PROJECTS):
         return []
     return sorted(d for d in os.listdir(PROJECTS) if os.path.isdir(os.path.join(PROJECTS, d)))
 
 
-def pronunciation(proj=None):
-    return text_norm.load_pronunciation(os.path.join(ROOT, "pronunciation.json"), proj.p("pronunciation.json") if proj else None)
+def pronunciation(proj=None, lang="vi"):
+    """Từ điển phát âm chung (theo ngôn ngữ) + của riêng dự án."""
+    name = os.path.basename(text_norm.pronunciation_files(ROOT, lang))
+    return text_norm.load_pronunciation(os.path.join(ROOT, name), proj.p(name) if proj else None)
 
 
 # ====================================================================== các bước
-def new_project(line, cfg, log=print, name=None):
-    info = input_parser.parse(line, cfg.get("default_minutes", 10))
+def new_project(line, cfg, log=print, name=None, lang=None):
+    info = input_parser.parse(line, cfg.get("default_minutes", 10), cfg.get("narration_language", "vi"))
+    if lang:
+        from core import lang as L
+        info["language"] = L.code(lang)
     slug = name or info["slug"]
     d = os.path.join(PROJECTS, slug)
     os.makedirs(d, exist_ok=True)
@@ -96,7 +106,7 @@ def new_project(line, cfg, log=print, name=None):
         proj.save("input.json", info)
     log(f"📁 Dự án: {proj.dir}")
     log(f"   Chủ đề: {info['topic']} | {info['minutes']:g} phút | nước: {input_parser.COUNTRY_NAMES.get(info['country'], 'chưa rõ (AI sẽ xác định)')}"
-        f"{' | ' + info['era'] if info['era'] else ''}")
+        f"{' | ' + info['era'] if info['era'] else ''} | lời kể: {_lang_name(info.get('language'))}")
     proj.mark("parsed")
     return proj
 
@@ -136,7 +146,8 @@ def script_meta(proj):
         raise RuntimeError(f"Chưa có {proj.p('script.md')}")
     parsed = script_writer.parse_markdown(md)
     info = proj.info
-    meta = dict(country=parsed["meta"].get("country") or info.get("country") or "vietnam",
+    meta = dict(language=parsed["meta"].get("language") or info.get("language") or "vi",
+                country=parsed["meta"].get("country") or info.get("country") or "vietnam",
                 era=parsed["meta"].get("era") or info.get("era", ""), year=parsed["meta"].get("year") or info.get("year"))
     if not parsed["title"]:
         parsed["title"] = info.get("topic", "")
@@ -182,29 +193,32 @@ def step_voice(proj, cfg, router, log=print, draft=False, auto=False, ask=input,
     from core.voice import voice_library as VL
     from core.voice.omnivoice_engine import OmniVoiceEngine, VoiceUnavailable, estimate_timings, generate_project_voice
     plan = load_plan(proj, log)
-    pron = pronunciation(proj)
+    lang = plan.get("language", "vi")
+    pron = pronunciation(proj, lang)
     if not OmniVoiceEngine.installed():
         log("⚠️  Chưa cài OmniVoice — dựng video KHÔNG có giọng (thời lượng ước tính, vẫn có phụ đề).")
         log("   Cài theo HUONG_DAN_CAI_DAT.md mục 'Giọng đọc', rồi chạy: python main.py voice-gen " + os.path.basename(proj.dir))
         proj.save(os.path.join("voice", "timings.json"), estimate_timings(plan, pron))
         proj.mark("voice")
         return
-    voice = VL.Voice(voice_name) if voice_name else VL.pick_voice(plan.get("voice"), plan.get("country"), cfg)
+    voice = VL.Voice(voice_name) if voice_name else VL.pick_voice(plan.get("voice"), plan.get("country"), cfg, lang)
     if voice is None:
         log("Chưa có giọng nào -> tự thiết kế giọng phù hợp chủ đề (cách B).")
         hint = (proj.load("script.json") or {}).get("voice_suggestion", "")
         try:
-            instructs = VL.suggest_instructs(router, plan["title"], hint) if router else VL.fallback_instructs()
+            instructs = VL.suggest_instructs(router, plan["title"], hint, lang) if router else VL.fallback_instructs()
         except LLMError as e:
             log(f"   ⚠️  {e} — dùng mô tả giọng mặc định")
             instructs = VL.fallback_instructs()
         log("⚠️  Voice design của OmniVoice học chủ yếu tiếng Trung / Anh; tiếng Việt có thể kém ổn định. "
             "Nếu nghe chưa tốt, nên dùng giọng thật của bạn: python main.py voice add <tên> --file giong.mp3")
-        cands = VL.design_candidates(instructs, cfg, log)
+        cands = VL.design_candidates(instructs, cfg, log, lang=lang)
         best = VL.choose(cands, auto=auto, ask=ask, log=log)
         name = "tu_dong_" + os.path.basename(proj.dir)
         VL.save_design(name, best)
-        if not VL.defaults().get("default"):
+        if lang != "vi":
+            VL.set_default(name, language=lang)
+        elif not VL.defaults().get("default"):
             VL.set_default(name)
         voice = VL.Voice(name)
     log(f"🎙  Giọng: {voice.name} ({voice.meta.get('loai')})")
@@ -230,7 +244,7 @@ def timeline_for(proj, plan, cfg):
     return build_timeline(plan, timings, int(cfg["render"].get("fps", 30)))
 
 
-def step_render(proj, cfg, log=print, draft=False):
+def step_render(proj, cfg, log=print, draft=False, quality=None):
     from audio import mixer
     from render.renderer import mux, render_video, scene_events
     plan = load_plan(proj, log)
@@ -239,7 +253,7 @@ def step_render(proj, cfg, log=print, draft=False):
     log(f"🎞  Dựng video {total / 60:.1f} phút, {len(tl)} cảnh...")
     rcfg = dict(cfg["render"])
     t0 = time.time()
-    silent = render_video(plan, tl, proj.dir, rcfg, draft=draft, log=log)
+    silent = render_video(plan, tl, proj.dir, rcfg, draft=draft, log=log, quality=quality)
     log("🔉 Trộn âm thanh (giọng + hiệu ứng + nhạc nền tự tạo)...")
     clips, events, beds, moods = [], [], [], []
     for e in tl:
@@ -265,7 +279,7 @@ def step_render(proj, cfg, log=print, draft=False):
     parsed = script_writer.parse_markdown(md) if md else None
     timings = proj.load(os.path.join("voice", "timings.json")) or {}
     export.write_youtube(proj.p("output", "youtube.txt"), plan, tl, proj.load("script.json"), parsed,
-                         export.sources_section(md), timings.get("voice"))
+                         export.sources_section(md), timings.get("voice"), lang=plan.get("language", "vi"))
     if not any(e["clips"] for e in tl):
         log("ℹ️  Video chưa có giọng đọc (chưa tạo giọng / chưa cài OmniVoice).")
     if cfg.get("kenh_kiem_tien"):
@@ -287,7 +301,7 @@ def step_preview(proj, cfg, log=print):
     return out
 
 
-def run(proj, cfg, log=print, auto=False, draft=False, offline=False, ask=input, voice_name=None):
+def run(proj, cfg, log=print, auto=False, draft=False, offline=False, ask=input, voice_name=None, quality=None):
     """Chạy tiếp các bước còn thiếu; dừng ở bước duyệt (trừ khi --auto)."""
     router = None if offline else Router(cfg, log_dir=proj.p("logs"), log=log)
     review = [] if auto else cfg.get("review_after", ["script", "plan"])
@@ -314,10 +328,10 @@ def run(proj, cfg, log=print, auto=False, draft=False, offline=False, ask=input,
             return "review_plan"
     proj.mark("plan", approved=True)
     step_voice(proj, cfg, router, log, draft=draft, auto=auto, ask=ask, voice_name=voice_name)
-    return step_render(proj, cfg, log, draft=draft)
+    return step_render(proj, cfg, log, draft=draft, quality=quality)
 
 
-def make_demo(cfg, log=print, draft=False):
+def make_demo(cfg, log=print, draft=False, quality=None):
     """Dự án mẫu GĐ1: plan.json viết tay (samples/bach_dang_938) -> video ~30 giây."""
     d = os.path.join(PROJECTS, "demo_bach_dang_938")
     os.makedirs(d, exist_ok=True)
@@ -331,4 +345,4 @@ def make_demo(cfg, log=print, draft=False):
     from core.voice.omnivoice_engine import estimate_timings
     if not os.path.exists(proj.p("voice", "timings.json")):
         proj.save(os.path.join("voice", "timings.json"), estimate_timings(plan, pronunciation(proj)))
-    return step_render(proj, cfg, log, draft=draft)
+    return step_render(proj, cfg, log, draft=draft, quality=quality)

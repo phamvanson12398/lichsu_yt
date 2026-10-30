@@ -95,7 +95,7 @@ def expand(el, comp, horizon, seed):
 
 class SceneVisual:
     def __init__(self, desc, OW, OH, fps, dur, palette=None, country="vietnam", motion="static", particles=(),
-                 seed=1, supersample=2.0, grain=7.0, vignette_strength=0.55, focus=(0.5, 0.5), grain_n=1, **_):
+                 seed=1, supersample=2.0, grain=7.0, vignette_strength=0.55, focus=(0.5, 0.5), grain_n=1, max_draw_h=2880, **_):
         registry.load_all()
         self.OW, self.OH, self.fps, self.dur = OW, OH, fps, dur
         desc = desc or {}
@@ -103,7 +103,7 @@ class SceneVisual:
         pal_name = desc.get("palette") or palette
         self.pal = palettes.get(pal_name)
         self.night = desc.get("time_of_day") == "night" and pal_name not in ("dem_lua", "dem_trang")
-        sp = canvas_spec(motion, OW, OH, supersample)
+        sp = canvas_spec(motion, OW, OH, supersample, max_draw_h=max_draw_h)
         cam_args = dict(focus=tuple(desc.get("focus", focus)), strength=float(desc.get("motion_strength", 1.0)))
         self.cam = Camera(motion, dur, sp, **cam_args)
         horizon = float(desc.get("horizon", 0.58))
@@ -331,12 +331,12 @@ class SceneVisual:
             if self.night:
                 sub = _tint(sub)
             kk = k * self.r
-            img = sub.resize((max(1, int(sub.width * kk)), max(1, int(sub.height * kk))), Image.BILINEAR)
+            img = sub.resize((max(1, int(sub.width * kk)), max(1, int(sub.height * kk))), Image.BICUBIC)
         else:
             ck, cimg = s._cache
             if ck is None or abs(ck - k) / k > 0.003:
                 cimg = s.img if abs(k - 1) < 1e-3 else s.img.resize(
-                    (max(1, int(s.img.width * k)), max(1, int(s.img.height * k))), Image.BILINEAR)
+                    (max(1, int(s.img.width * k)), max(1, int(s.img.height * k))), Image.BICUBIC)
                 s._cache = (k, cimg)
             img = cimg
             if abs(ang) > 0.05:
@@ -351,7 +351,7 @@ class SceneVisual:
         if abs((box[2] - box[0]) - OW) < 0.5 and abs((box[3] - box[1]) - OH) < 0.5:
             x0, y0 = int(round(box[0])), int(round(box[1]))
             return im.crop((x0, y0, x0 + OW, y0 + OH))
-        return im.resize((OW, OH), Image.BILINEAR, box=box)
+        return im.resize((OW, OH), Image.BICUBIC, box=box)
 
     def compose(self, t):
         OW, OH = self.OW, self.OH

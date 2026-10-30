@@ -14,7 +14,7 @@ import re
 
 from PIL import Image, ImageDraw, ImageFilter
 
-from render.common import GOLD, N, RichFont, ease, ease_out, text_layer, with_alpha, wrap_text
+from render.common import GOLD, N, RichFont, ease, ease_out, phrase_chunks, text_layer, with_alpha, wrap_text
 
 STYLES = ["cinematic", "typewriter", "word_by_word", "slide_in", "count_year", "subtitle", "none"]
 
@@ -67,7 +67,10 @@ class TextFX:
             pad = max(3, int(size * k) // 10)
             sp = rf.length(" ") - 2 * pad + 4 * k
             for ln in lines:
-                ws = [text_layer(w, "serif_bold", size * k, pad=pad) for w in ln.split()]
+                parts = phrase_chunks(ln)
+                if not (" " in ln):
+                    sp = -2 * pad
+                ws = [text_layer(w, "serif_bold", size * k, pad=pad) for w in parts]
                 x = (OW - (sum(w.width for w in ws) + sp * (len(ws) - 1))) / 2
                 for w in ws:
                     self.words.append((w, x, y))
@@ -271,7 +274,8 @@ def split_cue(a, b, text, rf, max_w):
     lines = wrap_text(text, rf, max_w)
     if len(lines) <= 2:
         return [(a, b, text)]
-    chunks = [" ".join(lines[i:i + 2]) for i in range(0, len(lines), 2)]
+    sep = " " if " " in text.strip() else ""
+    chunks = [sep.join(lines[i:i + 2]) for i in range(0, len(lines), 2)]
     total = sum(len(c) for c in chunks)
     out, t = [], a
     for c in chunks:

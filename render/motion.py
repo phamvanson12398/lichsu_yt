@@ -9,7 +9,7 @@ MOTIONS = ["static", "zoom_in_slow", "zoom_out_slow", "pan_left", "pan_right", "
            "zoom_in_fast"]
 
 
-def canvas_spec(motion, OW, OH, supersample=2.0):
+def canvas_spec(motion, OW, OH, supersample=2.0, max_draw_h=2880):
     """Kích thước canvas vẽ (2x để không vỡ hình) + độ phân giải làm việc sau khi thu nhỏ.
 
     work = 1.3 cho cảnh có zoom (đủ nét khi phóng 12-25%), 1.0 cho cảnh trượt / tĩnh.
@@ -20,7 +20,8 @@ def canvas_spec(motion, OW, OH, supersample=2.0):
         work, m = 1.0, 0.11
     else:
         work, m = 1.0, 0.03
-    S = max(work, float(supersample))
+    # vẽ ở 2x; với khung 1440p / 4K giới hạn chiều cao vẽ (~2880px) để không tốn quá nhiều bộ nhớ
+    S = max(work, min(float(supersample), max_draw_h / OH))
     vw, vh = OW * S, OH * S
     CW, CH = int(round(vw * (1 + 2 * m))), int(round(vh))
     return {"S": S, "work": work, "W": CW, "H": CH, "vx0": vw * m, "vy0": 0.0, "vw": vw, "vh": vh, "margin": m}

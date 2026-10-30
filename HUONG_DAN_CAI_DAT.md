@@ -133,7 +133,14 @@ trong `config.yaml` để tool nhắc; hãy tự cân nhắc trước khi dùng 
 - Muốn hiện tên gốc tiếng Hàn / Nhật (vd 이순신, 関ヶ原): `python main.py fonts` (tải Noto Serif KR / JP), hoặc
   Windows đã có sẵn Malgun Gothic / Yu Gothic, tool tự tìm.
 
-## 7. Lỗi thường gặp
+## 7. Ngôn ngữ và độ nét
+
+- Lời kể tiếng Anh / Hàn / Nhật: thêm mã ngôn ngữ vào ngoặc, vd `python main.py "Trận Hastings năm 1066 (8p, en)"`
+  (`en` Anh, `ko` Hàn, `ja` Nhật, `vi` Việt). Nên thêm giọng đọc đúng ngôn ngữ đó: `python main.py voice add giong_en --file en.m4a --lang en`.
+- Video nét hơn: `python main.py render <dự án> --quality cao` (1440p) hoặc `--quality 4k`. Dựng lâu hơn và cần nhiều RAM hơn
+  (1440p: nên có 16 GB RAM).
+
+## 8. Lỗi thường gặp
 
 | Thông báo | Cách xử lý |
 |---|---|

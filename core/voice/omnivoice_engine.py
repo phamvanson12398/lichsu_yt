@@ -226,7 +226,8 @@ class OmniVoiceEngine:
         if not self.asr:
             return None
         x, sr = read_wav(path)
-        r = self.asr({"raw": x, "sampling_rate": sr}, generate_kwargs={"language": lang, "task": "transcribe"})
+        from core import lang as L
+        r = self.asr({"raw": x, "sampling_rate": sr}, generate_kwargs={"language": L.get(lang)["asr"], "task": "transcribe"})
         return (r.get("text") if isinstance(r, dict) else str(r)).strip()
 
 
@@ -251,18 +252,23 @@ def generate_project_voice(plan, proj_dir, voice, cfg, pron, draft=False, log=pr
     speed = float(voice.meta.get("toc_do", vcfg.get("speed", 1.0)))
     num_step = vcfg.get("draft_num_step", 16) if draft else vcfg.get("num_step", 32)
     prompt = voice.clone_prompt(eng)
-    out = {"voice": voice.name, "scenes": {}}
+    lang = plan.get("language", "vi")
+    vlang = voice.meta.get("ngon_ngu", "vi")
+    if vlang and vlang != lang:
+        log(f"ℹ️  Giọng '{voice.name}' được tạo cho ngôn ngữ '{vlang}', video dùng '{lang}' — OmniVoice vẫn đọc được nhưng nên nghe kỹ.")
+    out = {"voice": voice.name, "language": lang, "scenes": {}}
     flagged = []
     jobs = []
     for sc in plan["scenes"]:
         if not sc.get("narration"):
             continue
-        for k, sent in enumerate(text_norm.split_sentences(sc["narration"]), 1):
+        for k, sent in enumerate(text_norm.split_sentences(sc["narration"], lang=lang), 1):
             jobs.append((sc["id"], k, sent))
-    total_syl = sum(len(j[2].split()) for j in jobs)
+    from core import lang as L
+    total_syl = sum(L.count(j[2], lang) for j in jobs)
     done_syl, t_start, told = 0, time.time(), False
     for sid, k, sent in jobs:
-        speak = text_norm.normalize(sent, pron)
+        speak = text_norm.normalize(sent, pron, lang)
         key = voice_key(voice.meta, speak, speed, num_step)
         fname = f"{int(sid):03d}_{k:02d}.wav" if str(sid).isdigit() else f"{sid}_{k:02d}.wav"
         fpath = os.path.join(vdir, fname)
@@ -284,7 +290,7 @@ def generate_project_voice(plan, proj_dir, voice, cfg, pron, draft=False, log=pr
                 save_wav(fpath, a, sr)
                 score = None
                 if vcfg.get("qc", True):
-                    hyp = eng.transcribe(fpath)
+                    hyp = eng.transcribe(fpath, lang)
                     score = cer(speak, hyp) if hyp is not None else None
                 if best is None or (score is not None and (best[0] is None or score < best[0])):
                     best = (score, a, sr)
@@ -294,7 +300,7 @@ def generate_project_voice(plan, proj_dir, voice, cfg, pron, draft=False, log=pr
             score, a, sr = best
             save_wav(fpath, a, sr)
             entry.update(dur=len(a) / sr, cer=score, can_nghe_lai=bool(score is not None and score > vcfg.get("qc_max_cer", 0.25)))
-            done_syl += len(sent.split())
+            done_syl += L.count(sent, lang)
             if not told and time.time() - t_start > 5 and done_syl:
                 rate = (time.time() - t_start) / done_syl
                 log(f"   ⏱  ước tính còn khoảng {rate * (total_syl - done_syl) / 60:.1f} phút để tạo giọng")
@@ -325,11 +331,12 @@ def trim_silence(a, sr, thresh=0.01, keep=0.05):
 def estimate_timings(plan, pron=None):
     """Khi chưa có giọng: ước lượng thời lượng câu (để dựng thử, phụ đề vẫn chạy)."""
     from render.renderer import estimate_speech
-    out = {"voice": None, "scenes": {}}
+    lang = plan.get("language", "vi")
+    out = {"voice": None, "language": lang, "scenes": {}}
     for sc in plan["scenes"]:
         if not sc.get("narration"):
             continue
-        for sent in text_norm.split_sentences(sc["narration"]):
+        for sent in text_norm.split_sentences(sc["narration"], lang=lang):
             out["scenes"].setdefault(str(sc["id"]), {"sentences": []})["sentences"].append(
-                {"text": text_norm.normalize(sent, pron), "display": sent, "file": None, "dur": estimate_speech(sent)})
+                {"text": text_norm.normalize(sent, pron, lang), "display": sent, "file": None, "dur": estimate_speech(sent, lang)})
     return out

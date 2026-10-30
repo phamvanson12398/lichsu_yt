@@ -18,14 +18,16 @@ def write_srt(timeline, path):
     return path
 
 
-def chapters(timeline, script=None):
+def chapters(timeline, script=None, lang="vi"):
     """Mốc chương YouTube: đầu mỗi phần kịch bản (dựa vào cảnh có lời trùng đoạn đầu của phần)."""
-    out = [(0.0, "Mở đầu")]
+    from core import lang as L
+    out = [(0.0, L.ui(lang, "intro"))]
     if not script:
         return out
     starts = []
     for sec in script.get("sections", [])[1:]:
-        head = " ".join(sec["paragraphs"][0].split()[:6]) if sec["paragraphs"] else ""
+        p0 = sec["paragraphs"][0] if sec["paragraphs"] else ""
+        head = p0[:12] if L.is_cjk_lang(lang) and " " not in p0[:12] else " ".join(p0.split()[:6])
         for e in timeline:
             if head and head in (e["scene"].get("narration") or ""):
                 starts.append((max(0.0, e["start"]), sec["heading"]))
@@ -36,31 +38,31 @@ def chapters(timeline, script=None):
     return out
 
 
-def write_youtube(path, plan, timeline, script_data=None, script_parsed=None, sources_md=None, voice_name=None):
+def write_youtube(path, plan, timeline, script_data=None, script_parsed=None, sources_md=None, voice_name=None, lang="vi"):
+    from core import lang as LG
+    u = lambda k, **kw: LG.ui(lang, k, **kw)
     yt = (script_data or {}).get("youtube") or {}
     title = plan.get("title", "")
-    titles = yt.get("titles") or [title, f"{title} – Trận đánh thay đổi lịch sử", f"{title}: chuyện ít người biết"]
-    desc = yt.get("description") or f"Câu chuyện về {title}, kể lại bằng hình minh họa động."
-    tags = yt.get("tags") or [title, "lịch sử", "lịch sử Việt Nam" if plan.get("country") == "vietnam" else "lịch sử thế giới",
-                              "trận đánh", "phim tài liệu", plan.get("era", "")]
-    L = ["=== GỢI Ý TIÊU ĐỀ ==="] + [f"- {t}" for t in titles] + ["", "=== MÔ TẢ ===", desc, ""]
-    ch = chapters(timeline, script_parsed)
+    titles = yt.get("titles") or [title]
+    desc = yt.get("description") or u("yt_desc_default", t=title)
+    tags = yt.get("tags") or [title, u("yt_tag_history"), plan.get("era", "")]
+    L = [u("yt_titles")] + [f"- {t}" for t in titles] + ["", u("yt_desc"), desc, ""]
+    ch = chapters(timeline, script_parsed, lang)
     if len(ch) >= 3:
-        L.append("Mốc thời gian:")
+        L.append(u("yt_chapters"))
         for t, h in ch:
             m, s = divmod(int(t), 60)
             L.append(f"{m:02d}:{s:02d} {h}")
         L.append("")
-    L += ["Hình ảnh trong video là tranh minh họa vẽ bằng code, không phải ảnh tư liệu thật.",
-          "Bản đồ là sơ đồ minh họa, không theo tỉ lệ.", "Âm nhạc và hiệu ứng âm thanh được tổng hợp bằng máy tính."]
+    L += list(u("yt_notes"))
     if voice_name:
-        L.append("Giọng đọc được tạo bằng mô hình OmniVoice (k2-fsa) từ giọng mẫu có sự đồng ý.")
+        L.append(u("yt_voice"))
     if sources_md:
         import re
         plain = [re.sub(r"\*\*|(?<!\w)_|_(?!\w)", "", ln) for ln in sources_md.split("###")[0].splitlines() if ln.startswith("- ")]
-        L += ["", "Nguồn tham khảo chính:"] + plain[:15]
-    L += ["", "=== TAG ===", ", ".join(t for t in tags if t), "",
-          "=== NHẮC VIỆC TRƯỚC KHI ĐĂNG ===",
+        L += ["", u("yt_sources")] + plain[:15]
+    L += ["", u("yt_tags"), ", ".join(t for t in tags if t), "",
+          "=== NHẮC VIỆC TRƯỚC KHI ĐĂNG (phần này không dán lên YouTube) ===",
           "- Xem lại toàn bộ video, nghe các câu được đánh dấu 'nên nghe lại' (nếu có).",
           "- Kiểm tra lại năm, tên người, số liệu theo phần GHI CHÚ NGUỒN trong script.md.",
           "- Nếu kênh bật kiếm tiền: lưu ý giấy phép CC-BY-NC của OmniVoice."]

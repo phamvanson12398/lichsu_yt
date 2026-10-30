@@ -26,6 +26,34 @@ python app.py                                         # giao diện đơn giản
 Đầu vào một dòng: chủ đề + thời lượng trong ngoặc (`(10p)` = 10 phút; không ghi thì 10 phút).
 Tool tự nhận nước / thời kỳ từ chủ đề.
 
+### Ngôn ngữ lời kể: Việt, Anh, Hàn, Nhật
+
+Mặc định kể bằng tiếng Việt (`narration_language: vi` trong `config.yaml`). Đổi cho từng video:
+
+```
+python main.py "Trận Hastings năm 1066 (8p, en)"        # tiếng Anh
+python main.py "Trận Hansan năm 1592 (8p, ko)"          # tiếng Hàn
+python main.py "Trận Sekigahara năm 1600 (12p, ja)"     # tiếng Nhật
+python main.py "Trận Bạch Đằng năm 938 (10p)" --lang en # hoặc dùng --lang
+```
+
+Theo ngôn ngữ, tool tự đổi: kịch bản (AI viết văn bản ngữ, độ dài tính theo từ / ký tự: en 150 từ/phút, ko & ja ~300 ký tự/phút),
+đọc số (`1066` → "ten sixty-six", `1592년` → "천오백구십이년", `1600年` → "千六百年"), tách câu (。！？), phụ đề và xuống dòng
+(tiếng Nhật ngắt theo ký tự, ưu tiên sau 、), font (Noto Serif KR / JP có sẵn trong `fonts/`), chữ trên bản đồ, `youtube.txt`,
+câu thử giọng và nhận dạng giọng nói. Ghi chú nguồn trong `script.md` vẫn bằng tiếng Việt để bạn kiểm tra.
+Từ điển phát âm riêng: `pronunciation.en.json`, `pronunciation.ko.json`, `pronunciation.ja.json`.
+Giọng: `python main.py voice add giong_anh --file en.m4a --lang en` rồi `python main.py voice default giong_anh --lang en`.
+
+### Độ nét
+
+```
+python main.py render bach_dang_938 --quality cao      # nhap (960x540) | chuan (1080p) | cao (1440p) | 4k
+```
+
+Đặt mặc định trong `config.yaml` → `render: quality:`. Mỗi cảnh vẽ ở 2x rồi thu nhỏ (không răng cưa), camera phóng ảnh bằng
+bicubic, nén x264 preset medium + tune animation, CRF 18, làm nét nhẹ (unsharp). **Mẹo:** tải lên YouTube bản 1440p hoặc 4K —
+YouTube nén bằng VP9 / AV1 với bitrate cao hơn nên người xem ở 1080p cũng thấy nét hơn rõ (đổi lại dựng lâu hơn ~1.8x / ~4x).
+
 ### Các bước và file trong dự án `projects/<tên>/`
 
 | Bước | Lệnh riêng | File |
